@@ -13,35 +13,31 @@ from .adapters import (
     run_scaled_dot_product_attention,
     run_transformer_block,
     run_transformer_lm,
-    run_linear, 
+    run_linear,
     run_embedding,
 )
 
 
 def test_linear(numpy_snapshot, ts_state_dict, in_embeddings, d_model, d_ff):
-    w1_weight = ts_state_dict[0][f"layers.0.ffn.w1.weight"]
+    w1_weight = ts_state_dict[0]["layers.0.ffn.w1.weight"]
     output = run_linear(
         d_in=d_model,
         d_out=d_ff,
         weights=w1_weight,
         in_features=in_embeddings,
     )
-    numpy_snapshot.assert_match(
-        output
-    )
+    numpy_snapshot.assert_match(output)
 
 
 def test_embedding(numpy_snapshot, ts_state_dict, in_indices, vocab_size, d_model):
-    embedding_weight = ts_state_dict[0][f"token_embeddings.weight"]
+    embedding_weight = ts_state_dict[0]["token_embeddings.weight"]
     output = run_embedding(
         vocab_size=vocab_size,
         d_model=d_model,
         weights=embedding_weight,
         token_ids=in_indices,
     )
-    numpy_snapshot.assert_match(
-        output
-    )
+    numpy_snapshot.assert_match(output)
 
 
 def test_swiglu(numpy_snapshot, ts_state_dict, in_embeddings, d_model, d_ff):
@@ -154,11 +150,7 @@ def test_transformer_lm(
         in_indices=in_indices,
     )
     # numpy.testing.assert_allclose(actual_output.detach().numpy(), expected_output.detach().numpy(), atol=1e-4)
-    numpy_snapshot.assert_match(
-        actual_output, 
-        atol=1e-4,
-        rtol=1e-2
-    )
+    numpy_snapshot.assert_match(actual_output, atol=1e-4, rtol=1e-2)
 
 
 def test_transformer_lm_truncated_input(
