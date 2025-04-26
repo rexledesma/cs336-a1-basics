@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import regex
@@ -60,12 +61,12 @@ def merge(
 
 
 def train_bpe_tokenizer(
-    input_path: Path,
+    input_path: str | os.PathLike,
     vocab_size: int,
     special_tokens: list[str],
 ) -> tuple[
     dict[int, bytes],
-    list[tuple[tuple[int, int], int]],
+    list[tuple[bytes, bytes]],
 ]:
     """
     Train a BPE tokenizer on the input text file.
@@ -86,11 +87,11 @@ def train_bpe_tokenizer(
     """
     # TODO: parallelize pre-tokenization
 
-    index_pair_merges: list[tuple[tuple[int, int], int]] = []
+    index_pair_merges: list[tuple[bytes, bytes]] = []
     vocabulary_for_index: dict[int, bytes] = {x: bytes([x]) for x in range(256)}
 
     special_token_pattern = "|".join(special_tokens)
-    split_corpus = regex.split(special_token_pattern, input_path.read_text())
+    split_corpus = regex.split(special_token_pattern, Path(input_path).read_text())
 
     # Count the number of occurences for each pair of tokens
     frequencies_for_pre_token: dict[tuple[int, ...], int] = {}
@@ -115,7 +116,7 @@ def train_bpe_tokenizer(
 
         # Merge the pair
         new_index = len(vocabulary_for_index)
-        index_pair_merges.append((most_common_index_pair, new_index))
+        index_pair_merges.append((vocabulary_for_index[index_1], vocabulary_for_index[index_2]))
         vocabulary_for_index[new_index] = vocabulary_for_index[index_1] + vocabulary_for_index[index_2]
 
         frequencies_for_pre_token, frequencies_for_index_pairs = merge(
