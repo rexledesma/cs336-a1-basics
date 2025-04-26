@@ -6,24 +6,24 @@ import regex
 GPT2_TOKENIZER_PATTERN = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 
-def generate_positions_to_merge(pre_token: tuple[int, ...], most_common_pair: tuple[int, int]) -> list[int]:
-    return [position for position, pair in enumerate(zip(pre_token, pre_token[1:])) if pair == most_common_pair]
+def generate_positions_to_merge(pre_token: tuple[bytes, ...], most_frequent_pair: tuple[bytes, bytes]) -> list[int]:
+    return [position for position, pair in enumerate(zip(pre_token, pre_token[1:])) if pair == most_frequent_pair]
 
 
 def merge(
-    frequencies_for_pre_token: dict[tuple[int, ...], int],
-    frequencies_for_index_pairs: dict[tuple[int, int], int],
-    most_common_pair: tuple[int, int],
+    frequencies_for_pre_token: dict[tuple[bytes, ...], int],
+    frequencies_for_pair: dict[tuple[bytes, bytes], int],
+    most_frequent_pair: tuple[bytes, bytes],
     new_index: int,
 ) -> tuple[
-    dict[tuple[int, ...], int],
-    dict[tuple[int, int], int],
+    dict[tuple[bytes, ...], int],
+    dict[tuple[bytes, bytes], int],
 ]:
     new_frequencies_for_pre_token = {}
 
     for pre_token, frequency in frequencies_for_pre_token.items():
         new_pre_token = []
-        positions_to_merge = set(generate_positions_to_merge(pre_token, most_common_pair))
+        positions_to_merge = set(generate_positions_to_merge(pre_token, most_frequent_pair))
 
         jdx = 0
         while jdx < len(pre_token):
@@ -31,10 +31,10 @@ def merge(
                 # Decrement frequencies for pairs being replaced
                 if jdx > 0:
                     prev_pair = (pre_token[jdx - 1], pre_token[jdx])
-                    frequencies_for_index_pairs[prev_pair] -= frequency
+                    frequencies_for_pair[prev_pair] -= frequency
                 if jdx < len(pre_token) - 2:
                     next_pair = (pre_token[jdx + 1], pre_token[jdx + 2])
-                    frequencies_for_index_pairs[next_pair] -= frequency
+                    frequencies_for_pair[next_pair] -= frequency
 
                 # Add the merged token
                 new_pre_token.append(new_index)
@@ -43,11 +43,11 @@ def merge(
                 # Increment frequencies for new pairs
                 if len(new_pre_token) > 1:
                     new_pair = new_pre_token[-2], new_pre_token[-1]
-                    frequencies_for_index_pairs[new_pair] = frequencies_for_index_pairs.get(new_pair, 0) + frequency
+                    frequencies_for_pair[new_pair] = frequencies_for_pair.get(new_pair, 0) + frequency
 
                 if jdx < len(pre_token):
                     new_pair = new_pre_token[-1], pre_token[jdx]
-                    frequencies_for_index_pairs[new_pair] = frequencies_for_index_pairs.get(new_pair, 0) + frequency
+                    frequencies_for_pair[new_pair] = frequencies_for_pair.get(new_pair, 0) + frequency
             else:
                 new_pre_token.append(pre_token[jdx])
 
@@ -55,9 +55,50 @@ def merge(
 
         new_frequencies_for_pre_token[tuple(new_pre_token)] = frequency
 
-    frequencies_for_index_pairs.pop(most_common_pair, None)
+    frequencies_for_pair.pop(most_frequent_pair, None)
 
-    return new_frequencies_for_pre_token, frequencies_for_index_pairs
+    return new_frequencies_for_pre_token, frequencies_for_pair
+
+
+def pre_tokenize(input_path: str | os.PathLike, special_tokens: list[str]) -> dict[tuple[bytes, ...], int]:
+    """
+    Pre-tokenize the input text using the GPT-2 tokenizer pattern.
+
+    Args:
+        input_path (Path): Path to a text file with BPE tokenizer training data.
+    Returns:
+        dict[tuple[bytes, ...], int]: A dictionary mapping pre-tokenized text to its frequency.
+    """
+    special_token_pattern = "|".join(special_tokens)
+    split_corpus = regex.split(special_token_pattern, Path(input_path).read_text())
+
+    frequencies_for_pre_token: dict[tuple[bytes, ...], int] = {}
+    for corpus in split_corpus:
+        for pre_token_match in regex.finditer(GPT2_TOKENIZER_PATTERN, corpus):
+            pre_token = tuple(char.encode() for char in pre_token_match.group())
+
+            frequencies_for_pre_token[pre_token] = frequencies_for_pre_token.setdefault(pre_token, 0) + 1
+
+    return frequencies_for_pre_token
+
+
+def build_pair_frequencies(frequencies_for_pre_token: dict[tuple[bytes, ...], int]) -> dict[tuple[bytes, bytes], int]:
+    """
+    Build a dictionary of frequencies for each pair of tokens in the pre-tokenized text.
+
+    Args:
+        frequencies_for_pre_token (dict[tuple[int, ...], int]): A dictionary mapping
+            pre-tokenized text to its frequency.
+    Returns:
+        dict[tuple[bytes, bytes], int]: A dictionary mapping pairs of tokens to their frequency.
+    """
+
+    frequencies_for_pair: dict[tuple[bytes, bytes], int] = {}
+    for pre_token, frequency in frequencies_for_pre_token.items():
+        for pair in zip(pre_token, pre_token[1:]):
+            frequencies_for_pair[pair] = frequencies_for_pair.setdefault(pair, 0) + frequency
+
+    return frequencies_for_pair
 
 
 def train_bpe_tokenizer(
@@ -90,37 +131,25 @@ def train_bpe_tokenizer(
     index_pair_merges: list[tuple[bytes, bytes]] = []
     vocabulary_for_index: dict[int, bytes] = {x: bytes([x]) for x in range(256)}
 
-    special_token_pattern = "|".join(special_tokens)
-    split_corpus = regex.split(special_token_pattern, Path(input_path).read_text())
-
     # Count the number of occurences for each pair of tokens
-    frequencies_for_pre_token: dict[tuple[int, ...], int] = {}
-    for corpus in split_corpus:
-        for pre_token_match in regex.finditer(GPT2_TOKENIZER_PATTERN, corpus):
-            pre_token = tuple(pre_token_match.group(0).encode())
-
-            frequencies_for_pre_token[pre_token] = frequencies_for_pre_token.setdefault(pre_token, 0) + 1
+    frequencies_for_pre_token = pre_tokenize(input_path, special_tokens)
 
     # Get the frequency of pairs
-    frequencies_for_index_pairs: dict[tuple[int, int], int] = {}
-    for pre_token, frequency in frequencies_for_pre_token.items():
-        for pair in zip(pre_token, pre_token[1:]):
-            frequencies_for_index_pairs[pair] = frequencies_for_index_pairs.setdefault(pair, 0) + frequency
+    frequencies_for_pairs = build_pair_frequencies(frequencies_for_pre_token)
 
     # Add special tokens to the vocabulary
     num_merges = vocab_size - len(vocabulary_for_index)
     for _ in range(num_merges):
         # Find most common pair
-        most_common_index_pair = max(frequencies_for_index_pairs, key=lambda p: (frequencies_for_index_pairs[p], p))
-        index_1, index_2 = most_common_index_pair
+        most_frequent_pair = max(frequencies_for_pairs, key=lambda p: (frequencies_for_pairs[p], p))
 
         # Merge the pair
         new_index = len(vocabulary_for_index)
-        index_pair_merges.append((vocabulary_for_index[index_1], vocabulary_for_index[index_2]))
-        vocabulary_for_index[new_index] = vocabulary_for_index[index_1] + vocabulary_for_index[index_2]
+        index_pair_merges.append(most_frequent_pair)
+        vocabulary_for_index[new_index] = most_frequent_pair[0] + most_frequent_pair[1]
 
-        frequencies_for_pre_token, frequencies_for_index_pairs = merge(
-            frequencies_for_pre_token, frequencies_for_index_pairs, most_common_index_pair, new_index
+        frequencies_for_pre_token, frequencies_for_pairs = merge(
+            frequencies_for_pre_token, frequencies_for_pairs, most_frequent_pair, new_index
         )
 
     return vocabulary_for_index, index_pair_merges
