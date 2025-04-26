@@ -1,12 +1,12 @@
+import os
+import pickle
+from pathlib import Path
 from typing import TypeVar
+
 import numpy as np
 import pytest
-import os
-from pathlib import Path
 import torch
 from torch import Tensor
-import pickle
-
 
 _A = TypeVar("_A", np.ndarray, Tensor)
 
@@ -184,8 +184,9 @@ def numpy_snapshot(request):
 
 @pytest.fixture
 def ts_state_dict(request):
-    from .common import FIXTURES_PATH
     import json
+
+    from .common import FIXTURES_PATH
 
     state_dict = torch.load(FIXTURES_PATH / "ts_tests" / "model.pt", map_location="cpu")
     config = json.load(open(FIXTURES_PATH / "ts_tests" / "model_config.json"))
