@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import regex
+
 GPT2_TOKENIZER_PATTERN = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 
@@ -83,21 +85,20 @@ def train_bpe_tokenizer(
             <token1> was merged with <token2>. The merges should be ordered by order of creation.
     """
     # TODO: parallelize pre-tokenization
-    # TODO: remove special tokens before pre-tokenization
-    # TODO: optimize the merge step
-    # TODO: handle special_tokens
 
     index_pair_merges: list[tuple[tuple[int, int], int]] = []
     vocabulary_for_index: dict[int, bytes] = {x: bytes([x]) for x in range(256)}
 
+    special_token_pattern = "|".join(special_tokens)
+    split_corpus = regex.split(special_token_pattern, input_path.read_text())
+
     # Count the number of occurences for each pair of tokens
     frequencies_for_pre_token: dict[tuple[int, ...], int] = {}
-    for (
-        pre_token_match
-    ) in input_path.read_text().split():  # regex.finditer(GPT2_TOKENIZER_PATTERN, input_path.read_text()):
-        pre_token = tuple(pre_token_match.encode())
+    for corpus in split_corpus:
+        for pre_token_match in regex.finditer(GPT2_TOKENIZER_PATTERN, corpus):
+            pre_token = tuple(pre_token_match.group(0).encode())
 
-        frequencies_for_pre_token[pre_token] = frequencies_for_pre_token.setdefault(pre_token, 0) + 1
+            frequencies_for_pre_token[pre_token] = frequencies_for_pre_token.setdefault(pre_token, 0) + 1
 
     # Get the frequency of pairs
     frequencies_for_index_pairs: dict[tuple[int, int], int] = {}
