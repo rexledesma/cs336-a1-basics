@@ -100,7 +100,7 @@ def build_pair_frequencies(frequencies_for_pre_token: dict[tuple[bytes, ...], in
     return frequencies_for_pair
 
 
-def train_bpe_tokenizer(
+def train_bpe(
     input_path: str | os.PathLike,
     vocab_size: int,
     special_tokens: list[str],
