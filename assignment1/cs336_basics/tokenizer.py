@@ -152,15 +152,18 @@ def train_bpe_tokenizer(
     """
     # TODO: parallelize pre-tokenization
 
+    initial_vocabulary = special_tokens + [chr(x) for x in range(256)]
+    vocabulary_for_index: dict[int, bytes] = {
+        vocab_id: vocab.encode() for vocab_id, vocab in enumerate(initial_vocabulary)
+    }
     index_pair_merges: list[tuple[bytes, bytes]] = []
-    vocabulary_for_index: dict[int, bytes] = {x: bytes([x]) for x in range(256)}
 
     # Count the number of occurences for each pair of tokens
     frequencies_for_pre_token = pre_tokenize(input_path, special_tokens)
 
     # Add special tokens to the vocabulary
-    num_merges = vocab_size - len(vocabulary_for_index)
-    for _ in range(num_merges):
+    initial_vocabulary_size = len(initial_vocabulary)
+    for new_vocab_id in range(initial_vocabulary_size, vocab_size):
         # Get the frequency of pairs
         frequencies_for_pairs = build_pair_frequencies(frequencies_for_pre_token)
 
@@ -168,9 +171,8 @@ def train_bpe_tokenizer(
         most_frequent_pair = max(frequencies_for_pairs, key=lambda p: (frequencies_for_pairs[p], p))
 
         # Merge the pair
-        new_index = len(vocabulary_for_index)
         index_pair_merges.append(most_frequent_pair)
-        vocabulary_for_index[new_index] = most_frequent_pair[0] + most_frequent_pair[1]
+        vocabulary_for_index[new_vocab_id] = most_frequent_pair[0] + most_frequent_pair[1]
 
         frequencies_for_pre_token = merge(frequencies_for_pre_token, most_frequent_pair)
 
