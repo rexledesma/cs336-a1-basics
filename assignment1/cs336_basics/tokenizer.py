@@ -93,7 +93,7 @@ def pre_tokenize(input_path: str | os.PathLike, special_tokens: list[str]) -> di
     Returns:
         dict[tuple[bytes, ...], int]: A dictionary mapping pre-tokenized text to its frequency.
     """
-    special_token_pattern = "|".join(special_tokens)
+    special_token_pattern = "|".join(map(regex.escape, special_tokens))
     split_corpus = regex.split(special_token_pattern, Path(input_path).read_text())
 
     frequencies_for_pre_token: dict[tuple[bytes, ...], int] = {}
