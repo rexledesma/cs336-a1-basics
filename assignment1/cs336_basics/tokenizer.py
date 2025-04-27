@@ -99,7 +99,7 @@ def pre_tokenize(input_path: str | os.PathLike, special_tokens: list[str]) -> di
     frequencies_for_pre_token: dict[tuple[bytes, ...], int] = {}
     for corpus in split_corpus:
         for pre_token_match in regex.finditer(GPT2_TOKENIZER_PATTERN, corpus):
-            pre_token = tuple(char.encode() for char in pre_token_match.group())
+            pre_token = tuple(bytes([i]) for i in pre_token_match.group().encode())
 
             frequencies_for_pre_token[pre_token] = frequencies_for_pre_token.setdefault(pre_token, 0) + 1
 
