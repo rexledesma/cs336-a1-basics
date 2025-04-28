@@ -22,8 +22,8 @@ class BPETokenizer:
             (
                 self.id_for_token[token_1],
                 self.id_for_token[token_2],
-            ): self.id_for_token[b"".join((token_1, token_2))]
-            for token_1, token_2 in merges
+            ): merge_id
+            for merge_id, (token_1, token_2) in enumerate(merges)
         }
         self.special_tokens = special_tokens or []
         self.special_tokens.sort(reverse=True)
@@ -71,25 +71,40 @@ class BPETokenizer:
 
         # Otherwise, deconstruct the pre token into its constituent tokens and return their IDs.
         token_ids = [self.id_for_token[token] for token in pre_token]
-        can_merge = True
-        while can_merge and len(token_ids) > 1:
-            can_merge = False
+        while len(token_ids) > 1:
+            merge_positions: list[tuple[int, int]] = []
+            for idx, pair in enumerate(zip(token_ids, token_ids[1:])):
+                merge_id = self.merged_token_for_pair.get(pair)
+
+                if merge_id:
+                    merge_positions.append((merge_id, idx))
+
+            # If no pairs are found, break the loop
+            if not merge_positions:
+                break
+
+            # Apply the merge in the same order of creation
+            merge_id_to_process, _ = min(merge_positions)
+
+            merge_positions_to_process = {idx for (merge_id, idx) in merge_positions if merge_id == merge_id_to_process}
+
             new_token_ids = []
-
             idx = 0
-            while idx < len(token_ids) - 1:
-                pair = token_ids[idx], token_ids[idx + 1]
-                if merged_token_id := self.merged_token_for_pair.get(pair):
-                    new_token_ids.append(merged_token_id)
+            while idx < len(token_ids):
+                if idx in merge_positions_to_process:
+                    merged_token = b"".join(
+                        (
+                            self.token_for_id[token_ids[idx]],
+                            self.token_for_id[token_ids[idx + 1]],
+                        )
+                    )
+                    new_token_ids.append(self.id_for_token[merged_token])
 
-                    can_merge = True
                     idx += 2
                 else:
                     new_token_ids.append(token_ids[idx])
-                    idx += 1
 
-            if idx < len(token_ids):
-                new_token_ids.append(token_ids[idx])
+                    idx += 1
 
             token_ids = new_token_ids
 
