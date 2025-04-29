@@ -61,16 +61,17 @@ class BPETokenizer:
 
         return token_ids
 
-    def tokenize(self, pre_token: tuple[bytes, ...]) -> list[int]:
+    def tokenize(self, pre_token: str) -> list[int]:
         """
         Tokenize a pre-tokenized input into a sequence of token IDs.
         """
         # If the pre-token in its entirety is in our vocabulary, return its ID directly.
-        if token_id := self.id_for_token.get(b"".join(pre_token)):
+        byte_list = pre_token.encode()
+        if token_id := self.id_for_token.get(byte_list):
             return [token_id]
 
         # Otherwise, deconstruct the pre token into its constituent tokens and return their IDs.
-        token_ids = [self.id_for_token[token] for token in pre_token]
+        token_ids = [self.id_for_token[bytes([byte])] for byte in byte_list]
         while len(token_ids) > 1:
             merge_positions: list[tuple[int, int]] = []
             for idx, pair in enumerate(zip(token_ids, token_ids[1:])):
