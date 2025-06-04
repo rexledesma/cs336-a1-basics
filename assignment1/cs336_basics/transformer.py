@@ -23,8 +23,6 @@ class Linear(nn.Module):
             dtype (torch.dtype | None, optional): Data type of the layer's parameters. Defaults to None.
         """
         super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
 
         std = sqrt(2.0 / (in_features + out_features))
         self.weight = nn.Parameter(
