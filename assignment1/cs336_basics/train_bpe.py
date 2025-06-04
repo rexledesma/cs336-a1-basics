@@ -183,8 +183,6 @@ def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], 
     file.seek(boundary[0])
     contents = file.read(boundary[1] - boundary[0]).decode("utf-8", errors="ignore")
 
-    print("contents read")
-
     # Pre-tokenize the input text
     pre_tokens = pre_tokenize(contents, special_tokens, keep_special_tokens=False)
 
@@ -208,16 +206,12 @@ def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens:
 
         boundaries = list(zip(chunk_boundaries, chunk_boundaries[1:]))
 
-        print(boundaries, "chunks created for BPE training")
-
     frequencies_for_pre_token: dict[tuple[bytes, ...], int] = Counter()
     frequencies_for_pairs: dict[tuple[bytes, bytes], int] = Counter()
     with Pool(cpu_count()) as pool:
-        for idx, (chunked_frequencies_for_pre_token, chunked_frequencies_for_pairs) in enumerate(
-            pool.starmap(
-                build_frequencies,
-                ((input_path, boundary, special_tokens) for boundary in boundaries),
-            )
+        for chunked_frequencies_for_pre_token, chunked_frequencies_for_pairs in pool.starmap(
+            build_frequencies,
+            ((input_path, boundary, special_tokens) for boundary in boundaries),
         ):
             frequencies_for_pre_token.update(chunked_frequencies_for_pre_token)
             frequencies_for_pairs.update(chunked_frequencies_for_pairs)

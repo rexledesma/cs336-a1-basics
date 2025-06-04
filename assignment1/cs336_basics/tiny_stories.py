@@ -4,11 +4,7 @@ import time
 
 from cs336_basics.train_bpe import train_bpe
 
-TINY_STORIES_PATH = (
-    pathlib.Path(__file__)
-    .joinpath("..", "data", "TinyStoriesV2-GPT4-train.txt")
-    .resolve()
-)
+TINY_STORIES_PATH = pathlib.Path(__file__).joinpath("..", "..", "data", "TinyStoriesV2-GPT4-train.txt").resolve()
 MAX_VOCAB_SIZE = 10_000
 
 if __name__ == "__main__":
