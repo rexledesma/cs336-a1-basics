@@ -1,6 +1,9 @@
 import os
+from collections import Counter
 from collections.abc import Iterator
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
+from typing import BinaryIO
 
 import regex
 
@@ -131,6 +134,97 @@ def build_pair_frequencies(frequencies_for_pre_token: dict[tuple[bytes, ...], in
     return frequencies_for_pair
 
 
+def find_chunk_boundaries(file: BinaryIO, desired_num_chunks: int, split_special_token: bytes) -> list[int]:
+    """
+    Chunk the file into parts that can be counted independently.
+    May return fewer chunks if the boundaries end up overlapping.
+    """
+    assert isinstance(split_special_token, bytes), "Must represent special token as a bytestring"
+
+    # Get total file size in bytes
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+
+    chunk_size = file_size // desired_num_chunks
+
+    # Initial guesses for chunk boundary locations, uniformly spaced
+    # Chunks start on previous index, don't include last index
+    chunk_boundaries = [i * chunk_size for i in range(desired_num_chunks + 1)]
+    chunk_boundaries[-1] = file_size
+
+    mini_chunk_size = 4096  # Read ahead by 4k bytes at a time
+
+    for bi in range(1, len(chunk_boundaries) - 1):
+        initial_position = chunk_boundaries[bi]
+        file.seek(initial_position)  # Start at boundary guess
+        while True:
+            mini_chunk = file.read(mini_chunk_size)  # Read a mini chunk
+
+            # If EOF, this boundary should be at the end of the file
+            if mini_chunk == b"":
+                chunk_boundaries[bi] = file_size
+                break
+
+            # Find the special token in the mini chunk
+            found_at = mini_chunk.find(split_special_token)
+            if found_at != -1:
+                chunk_boundaries[bi] = initial_position + found_at
+                break
+            initial_position += mini_chunk_size
+
+    # Make sure all boundaries are unique, but might be fewer than desired_num_chunks
+    return sorted(set(chunk_boundaries))
+
+
+def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], special_tokens: list[str]):
+    # Read contents from file
+    file = Path(input_path).open("rb")
+    file.seek(boundary[0])
+    contents = file.read(boundary[1] - boundary[0]).decode("utf-8", errors="ignore")
+
+    print("contents read")
+
+    # Pre-tokenize the input text
+    pre_tokens = pre_tokenize(contents, special_tokens, keep_special_tokens=False)
+
+    # Count the number of occurences for each pair of tokens
+    frequencies_for_pre_token = build_frequencies_for_pre_token(pre_tokens)
+
+    # Get the frequency of pairs
+    frequencies_for_pairs = build_pair_frequencies(frequencies_for_pre_token)
+
+    return frequencies_for_pre_token, frequencies_for_pairs
+
+
+def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens: list[str]):
+    boundaries = [(0, Path(input_path).stat().st_size)]
+    if os.getenv("CS336_BPE_ENABLE_MULTIPROCESSING"):
+        chunk_boundaries = find_chunk_boundaries(
+            Path(input_path).open("rb"),
+            desired_num_chunks=cpu_count(),
+            split_special_token=special_tokens[0].encode() if special_tokens else b"<|endoftext|>",
+        )
+
+        boundaries = list(zip(chunk_boundaries, chunk_boundaries[1:]))
+
+        print(boundaries, "chunks created for BPE training")
+
+    frequencies_for_pre_token: dict[tuple[bytes, ...], int] = Counter()
+    frequencies_for_pairs: dict[tuple[bytes, bytes], int] = Counter()
+    with Pool(cpu_count()) as pool:
+        for idx, (chunked_frequencies_for_pre_token, chunked_frequencies_for_pairs) in enumerate(
+            pool.starmap(
+                build_frequencies,
+                ((input_path, boundary, special_tokens) for boundary in boundaries),
+            )
+        ):
+            frequencies_for_pre_token.update(chunked_frequencies_for_pre_token)
+            frequencies_for_pairs.update(chunked_frequencies_for_pairs)
+
+    return frequencies_for_pre_token, frequencies_for_pairs
+
+
 def train_bpe(
     input_path: str | os.PathLike,
     vocab_size: int,
@@ -156,20 +250,11 @@ def train_bpe(
             Each list item is a tuple of bytes (<token1>, <token2>), representing that
             <token1> was merged with <token2>. The merges should be ordered by order of creation.
     """
-    # TODO: parallelize pre-tokenization
-
     initial_vocabulary = [token.encode() for token in special_tokens] + [bytes([x]) for x in range(256)]
     vocabulary_for_index: dict[int, bytes] = dict(enumerate(initial_vocabulary))
     index_pair_merges: list[tuple[bytes, bytes]] = []
 
-    # Pre-tokenize the input text
-    pre_tokens = pre_tokenize(input_path, special_tokens, keep_special_tokens=False)
-
-    # Count the number of occurences for each pair of tokens
-    frequencies_for_pre_token = build_frequencies_for_pre_token(pre_tokens)
-
-    # Get the frequency of pairs
-    frequencies_for_pairs = build_pair_frequencies(frequencies_for_pre_token)
+    frequencies_for_pre_token, frequencies_for_pairs = build_frequencies_in_parallel(input_path, special_tokens)
 
     # Add special tokens to the vocabulary
     initial_vocabulary_size = len(initial_vocabulary)
