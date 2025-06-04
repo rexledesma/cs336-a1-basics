@@ -46,3 +46,46 @@ class Linear(nn.Module):
             torch.Tensor: Output tensor of shape (batch_size, out_features).
         """
         return einsum(self.weight, x, "d_out d_in, ... d_in -> ... d_out")
+
+
+class Embedding(nn.Module):
+    def __init__(
+        self,
+        num_embeddings: int,
+        embedding_dim: int,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        """
+        Initialize an embedding layer with the specified number of embeddings and embedding dimension.
+
+        Args:
+            num_embeddings (int): Size of the vocabulary.
+            embedding_dim (int): Dimension of each embedding.
+            device (torch.device | None, optional): Device to place the layer on. Defaults to None.
+            dtype (torch.dtype | None, optional): Data type of the layer's parameters. Defaults to None.
+        """
+        super().__init__()
+
+        std = sqrt(2.0 / (num_embeddings + embedding_dim))
+        self.weight = nn.Parameter(
+            nn.init.trunc_normal_(
+                torch.empty((num_embeddings, embedding_dim), device=device, dtype=dtype),
+                mean=0.0,
+                std=std,
+                a=-3 * std,
+                b=3 * std,
+            )
+        )
+
+    def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
+        """
+        Lookup the embedding vectors for the given token IDs.
+
+        Args:
+            token_ids (torch.Tensor): Input tensor of shape (batch_size, sequence_length) containing token IDs.
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, sequence_length, embedding_dim).
+        """
+        return self.weight[token_ids]
