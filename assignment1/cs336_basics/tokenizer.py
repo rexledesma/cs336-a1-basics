@@ -55,23 +55,22 @@ class BPETokenizer:
         """
         Encode an input text into a sequence of token IDs.
         """
-        pre_tokens = pre_tokenize(text, self.special_tokens, keep_special_tokens=True)
+        pre_tokens = pre_tokenize(text.encode(), self.special_tokens, keep_special_tokens=True)
 
         token_ids = list(itertools.chain.from_iterable(self.tokenize(pre_token) for pre_token in pre_tokens))
 
         return token_ids
 
-    def tokenize(self, pre_token: str) -> list[int]:
+    def tokenize(self, pre_token: bytes) -> list[int]:
         """
         Tokenize a pre-tokenized input into a sequence of token IDs.
         """
         # If the pre-token in its entirety is in our vocabulary, return its ID directly.
-        byte_list = pre_token.encode()
-        if token_id := self.id_for_token.get(byte_list):
+        if token_id := self.id_for_token.get(pre_token):
             return [token_id]
 
         # Otherwise, deconstruct the pre token into its constituent tokens and return their IDs.
-        token_ids = [self.id_for_token[bytes([byte])] for byte in byte_list]
+        token_ids = [self.id_for_token[bytes([byte])] for byte in pre_token]
         while len(token_ids) > 1:
             merge_positions: list[tuple[int, int]] = []
             for idx, pair in enumerate(zip(token_ids, token_ids[1:])):

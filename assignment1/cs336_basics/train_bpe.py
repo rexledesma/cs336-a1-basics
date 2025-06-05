@@ -7,7 +7,7 @@ from typing import BinaryIO
 
 import regex
 
-GPT2_TOKENIZER_PATTERN = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+GPT2_TOKENIZER_PATTERN = rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 
 def generate_positions_to_merge(pre_token: tuple[bytes, ...], most_frequent_pair: tuple[bytes, bytes]) -> list[int]:
@@ -63,29 +63,28 @@ def merge(
     return new_frequencies_for_pre_token, frequencies_for_pair
 
 
-def pre_tokenize(
-    input_path: str | os.PathLike, special_tokens: list[str], *, keep_special_tokens: bool
-) -> Iterator[str]:
+def pre_tokenize(encoded_text: bytes, special_tokens: list[str], *, keep_special_tokens: bool) -> Iterator[bytes]:
     """
     Pre-tokenize the input text using the GPT-2 tokenizer pattern.
 
     Args:
-        input_path (Path): Path to a text file with BPE tokenizer training data.
+        encoded_text (bytes): The BPE tokenizer training data, represented in bytes.
         special_tokens (list[str]): A list of strings to add to the vocabulary.
         keep_special_tokens (bool): If True, keep special tokens in the output.
     Returns:
-        Iterator[str]: An iterator over pre-tokenized text.
+        Iterator[bytes]: An iterator over pre-tokenized text.
     """
 
-    contents = Path(input_path).read_text() if isinstance(input_path, os.PathLike) else input_path
-    split_corpus = [contents]
+    split_corpus = [encoded_text]
 
     if special_tokens:
         special_token_pattern = "|".join(map(regex.escape, special_tokens))
         if keep_special_tokens:
             special_token_pattern = f"({special_token_pattern})"
 
-        split_corpus = regex.split(special_token_pattern, contents)
+        special_token_pattern = special_token_pattern.encode()
+
+        split_corpus = regex.split(special_token_pattern, encoded_text)
 
     for corpus in split_corpus:
         if special_tokens and keep_special_tokens and regex.match(special_token_pattern, corpus):
@@ -97,7 +96,7 @@ def pre_tokenize(
 
 
 def build_frequencies_for_pre_token(
-    pre_tokens: Iterator[str],
+    pre_tokens: Iterator[bytes],
 ) -> dict[tuple[bytes, ...], int]:
     """
     Build a dictionary of frequencies for each pre-tokenized text.
@@ -109,7 +108,7 @@ def build_frequencies_for_pre_token(
     """
     frequencies_for_pre_token: dict[tuple[bytes, ...], int] = {}
     for pre_token in pre_tokens:
-        byte_list = tuple(bytes([i]) for i in pre_token.encode())
+        byte_list = tuple(bytes([i]) for i in pre_token)
         frequencies_for_pre_token[byte_list] = frequencies_for_pre_token.setdefault(byte_list, 0) + 1
 
     return frequencies_for_pre_token
@@ -181,10 +180,10 @@ def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], 
     # Read contents from file
     file = Path(input_path).open("rb")
     file.seek(boundary[0])
-    contents = file.read(boundary[1] - boundary[0]).decode("utf-8", errors="ignore")
+    encoded_text = file.read(boundary[1] - boundary[0])
 
     # Pre-tokenize the input text
-    pre_tokens = pre_tokenize(contents, special_tokens, keep_special_tokens=False)
+    pre_tokens = pre_tokenize(encoded_text, special_tokens, keep_special_tokens=False)
 
     # Count the number of occurences for each pair of tokens
     frequencies_for_pre_token = build_frequencies_for_pre_token(pre_tokens)
