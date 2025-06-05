@@ -1,7 +1,5 @@
 import itertools
-import json
 from collections.abc import Iterable, Iterator
-from pathlib import Path
 
 from cs336_basics.train_bpe import pre_tokenize
 
@@ -20,29 +18,6 @@ class BPETokenizer:
         self.id_for_token = {token: token_id for token_id, token in self.token_for_id.items()}
         self.id_for_merge = {merge: merge_id for merge_id, merge in enumerate(merges)}
         self.special_tokens = special_tokens or []
-
-    @classmethod
-    def from_files(
-        cls, vocab_filepath: str, merges_filepath: str, special_tokens: list[str] | None = None
-    ) -> "BPETokenizer":
-        """
-        Constructs and return a Tokenizer from a serialized vocabulary and list of merges
-        (in the same format that your BPE training code output) and (optionally) a list of special tokens.
-        """
-        vocab = json.loads(
-            Path(vocab_filepath).read_text(),
-            object_hook=lambda d: {int(k): bytes(v) for k, v in d.items()},
-        )
-        merges: list[tuple[bytes, bytes]] = []
-        for line in Path(merges_filepath).read_text().splitlines():
-            x, y = line.split()
-            merges.append((x.encode(), y.encode()))
-
-        return cls(
-            vocab=vocab,
-            merges=merges,
-            special_tokens=special_tokens,
-        )
 
     def encode(self, text: str) -> list[int]:
         """
