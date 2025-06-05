@@ -1,8 +1,15 @@
 import json
 import time
 
+import pytest
+
 from .adapters import run_train_bpe
 from .common import FIXTURES_PATH, gpt2_bytes_to_unicode
+
+
+@pytest.fixture(params=["0", "1"], autouse=True)
+def multiprocessing_fixture(request, monkeypatch):
+    monkeypatch.setenv("CS336_BPE_ENABLE_MULTIPROCESSING", request.param)
 
 
 def test_train_bpe_speed():

@@ -86,6 +86,7 @@ class Snapshot:
         os.makedirs(self.snapshot_dir, exist_ok=True)
 
     def _get_snapshot_path(self, test_name: str) -> Path:
+        test_name, *_ = test_name.split("[")  # Remove parameterized test suffixes
         return self.snapshot_dir / f"{test_name}.pkl"
 
     def assert_match(

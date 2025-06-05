@@ -197,7 +197,8 @@ def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], 
 
 def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens: list[str]):
     boundaries = [(0, Path(input_path).stat().st_size)]
-    if os.getenv("CS336_BPE_ENABLE_MULTIPROCESSING"):
+    if os.getenv("CS336_BPE_ENABLE_MULTIPROCESSING") == "1":
+        print("Using multiprocessing for BPE training.")
         chunk_boundaries = find_chunk_boundaries(
             Path(input_path).open("rb"),
             desired_num_chunks=cpu_count(),
