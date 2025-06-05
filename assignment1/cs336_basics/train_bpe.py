@@ -64,41 +64,27 @@ def merge(
     return new_frequencies_for_pre_token, frequencies_for_pair
 
 
-def pre_tokenize(
-    encoded_text: bytes, special_tokens: list[str], *, keep_special_tokens: bool
-) -> Iterator[tuple[bytes, ...]]:
+def pre_tokenize(encoded_text: bytes, special_tokens: list[str]) -> Iterator[tuple[bytes, ...]]:
     """
     Pre-tokenize the input text using the GPT-2 tokenizer pattern.
 
     Args:
         encoded_text (bytes): The BPE tokenizer training data, represented in bytes.
         special_tokens (list[str]): A list of strings to add to the vocabulary.
-        keep_special_tokens (bool): If True, keep special tokens in the output.
     Returns:
         Iterator[bytes]: An iterator over pre-tokenized text.
     """
 
     split_corpus = [encoded_text]
-
     if special_tokens:
-        special_token_pattern = "|".join(map(regex.escape, special_tokens))
-        if keep_special_tokens:
-            special_token_pattern = f"({special_token_pattern})"
-
-        special_token_pattern = special_token_pattern.encode()
-
-        split_corpus = regex.split(special_token_pattern, encoded_text)
+        special_token_pattern = "|".join(map(regex.escape, special_tokens)).encode()
+        split_corpus = regex.splititer(special_token_pattern, encoded_text)
 
     for corpus in split_corpus:
-        if special_tokens and keep_special_tokens and regex.match(special_token_pattern, corpus):
-            # If the corpus is a special token, yield it as a single pre-token
-            # TODO: Remove special handling for special tokens
-            yield (corpus,)
-        else:
-            for pre_token_match in regex.finditer(GPT2_TOKENIZER_PATTERN, corpus):
-                pre_token = pre_token_match.group()
+        for pre_token_match in regex.finditer(GPT2_TOKENIZER_PATTERN, corpus):
+            pre_token = pre_token_match.group()
 
-                yield struct.unpack("c" * len(pre_token), pre_token)
+            yield struct.unpack("c" * len(pre_token), pre_token)
 
 
 def build_pair_frequencies(frequencies_for_pre_token: dict[tuple[bytes, ...], int]) -> dict[tuple[bytes, bytes], int]:
@@ -170,7 +156,7 @@ def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], 
     encoded_text = file.read(boundary[1] - boundary[0])
 
     # Pre-tokenize the input text
-    pre_tokens = pre_tokenize(encoded_text, special_tokens, keep_special_tokens=False)
+    pre_tokens = pre_tokenize(encoded_text, special_tokens)
 
     # Count the number of occurences for each pair of tokens
     frequencies_for_pre_token = Counter(pre_tokens)

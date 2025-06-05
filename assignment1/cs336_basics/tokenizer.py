@@ -55,7 +55,7 @@ class BPETokenizer:
         """
         Encode an input text into a sequence of token IDs.
         """
-        pre_tokens = pre_tokenize(text.encode(), self.special_tokens, keep_special_tokens=True)
+        pre_tokens = pre_tokenize(text.encode(), self.special_tokens)
 
         token_ids = list(itertools.chain.from_iterable(self.tokenize(pre_token) for pre_token in pre_tokens))
 
