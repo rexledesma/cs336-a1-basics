@@ -1,3 +1,4 @@
+import itertools
 import os
 import struct
 from collections import Counter
@@ -12,7 +13,7 @@ GPT2_TOKENIZER_PATTERN = rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}
 
 
 def generate_positions_to_merge(pre_token: tuple[bytes, ...], most_frequent_pair: tuple[bytes, bytes]) -> list[int]:
-    return [position for position, pair in enumerate(zip(pre_token, pre_token[1:])) if pair == most_frequent_pair]
+    return [position for position, pair in enumerate(itertools.pairwise(pre_token)) if pair == most_frequent_pair]
 
 
 def merge(
@@ -114,7 +115,7 @@ def build_pair_frequencies(frequencies_for_pre_token: dict[tuple[bytes, ...], in
 
     frequencies_for_pair: dict[tuple[bytes, bytes], int] = {}
     for pre_token, frequency in frequencies_for_pre_token.items():
-        for pair in zip(pre_token, pre_token[1:]):
+        for pair in itertools.pairwise(pre_token):
             frequencies_for_pair[pair] = frequencies_for_pair.setdefault(pair, 0) + frequency
 
     return frequencies_for_pair
@@ -187,7 +188,7 @@ def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens:
         desired_num_chunks=cpu_count(),
         split_special_token=special_tokens[0].encode() if special_tokens else b"<|endoftext|>",
     )
-    boundaries = list(zip(chunk_boundaries, chunk_boundaries[1:]))
+    boundaries = itertools.pairwise(chunk_boundaries)
 
     with Pool(cpu_count()) as pool:
         chunk_results = pool.starmap(

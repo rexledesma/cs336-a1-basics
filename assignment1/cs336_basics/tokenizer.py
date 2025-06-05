@@ -37,7 +37,7 @@ class BPETokenizer:
         pre_token_list = list(pre_token)
         while len(pre_token_list) > 1:
             merge_positions: list[tuple[int, int]] = []
-            for idx, pair in enumerate(zip(pre_token_list, pre_token_list[1:])):
+            for idx, pair in enumerate(itertools.pairwise(pre_token_list)):
                 merge_id = self.id_for_merge.get(pair)
 
                 if merge_id is not None:
