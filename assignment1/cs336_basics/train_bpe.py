@@ -77,10 +77,19 @@ def pre_tokenize(encoded_text: bytes, special_tokens: list[str]) -> Iterator[tup
 
     split_corpus = [encoded_text]
     if special_tokens:
-        special_token_pattern = "|".join(map(regex.escape, special_tokens)).encode()
+        special_token_pattern = "|".join(map(regex.escape, special_tokens))
+        special_token_pattern = f"({special_token_pattern})".encode()
         split_corpus = regex.splititer(special_token_pattern, encoded_text)
 
+    encoded_special_tokens = {token.encode() for token in special_tokens}
     for corpus in split_corpus:
+        if not corpus:
+            continue
+
+        if corpus in encoded_special_tokens:
+            yield (corpus,)
+            continue
+
         for pre_token_match in regex.finditer(GPT2_TOKENIZER_PATTERN, corpus):
             pre_token = pre_token_match.group()
 
