@@ -77,6 +77,11 @@ def pre_tokenize(encoded_text: bytes, special_tokens: list[str]) -> Iterator[tup
 
     split_corpus = [encoded_text]
     if special_tokens:
+        # Attempt to match the longest special token first.
+        # This is to ensure that special tokens that are substrings of other special tokens
+        # are not split incorrectly.
+        special_tokens = sorted(special_tokens, reverse=True)
+
         special_token_pattern = "|".join(map(regex.escape, special_tokens))
         special_token_pattern = f"({special_token_pattern})".encode()
         split_corpus = regex.splititer(special_token_pattern, encoded_text)

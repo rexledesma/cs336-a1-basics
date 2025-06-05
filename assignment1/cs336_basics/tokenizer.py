@@ -26,7 +26,6 @@ class BPETokenizer:
             for merge_id, (token_1, token_2) in enumerate(merges)
         }
         self.special_tokens = special_tokens or []
-        self.special_tokens.sort(reverse=True)
 
     @classmethod
     def from_files(
