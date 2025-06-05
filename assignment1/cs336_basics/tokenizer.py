@@ -70,7 +70,7 @@ class BPETokenizer:
             return [token_id]
 
         # Otherwise, deconstruct the pre token into its constituent tokens and return their IDs.
-        token_ids = [self.id_for_token[bytes([byte])] for byte in pre_token]
+        token_ids = [self.id_for_token[i.to_bytes()] for i in pre_token]
         while len(token_ids) > 1:
             merge_positions: list[tuple[int, int]] = []
             for idx, pair in enumerate(zip(token_ids, token_ids[1:])):

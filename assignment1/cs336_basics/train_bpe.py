@@ -108,7 +108,7 @@ def build_frequencies_for_pre_token(
     """
     frequencies_for_pre_token: dict[tuple[bytes, ...], int] = {}
     for pre_token in pre_tokens:
-        byte_list = tuple(bytes([i]) for i in pre_token)
+        byte_list = tuple(i.to_bytes() for i in pre_token)
         frequencies_for_pre_token[byte_list] = frequencies_for_pre_token.setdefault(byte_list, 0) + 1
 
     return frequencies_for_pre_token
@@ -244,7 +244,7 @@ def train_bpe(
             Each list item is a tuple of bytes (<token1>, <token2>), representing that
             <token1> was merged with <token2>. The merges should be ordered by order of creation.
     """
-    initial_vocabulary = [token.encode() for token in special_tokens] + [bytes([x]) for x in range(256)]
+    initial_vocabulary = [token.encode() for token in special_tokens] + [x.to_bytes() for x in range(256)]
     vocabulary_for_index: dict[int, bytes] = dict(enumerate(initial_vocabulary))
     index_pair_merges: list[tuple[bytes, bytes]] = []
 
