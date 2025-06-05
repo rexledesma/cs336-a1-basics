@@ -168,26 +168,24 @@ def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], 
 
 
 def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens: list[str]):
-    boundaries = [(0, Path(input_path).stat().st_size)]
-    if os.getenv("CS336_BPE_ENABLE_MULTIPROCESSING") == "1":
-        print("Using multiprocessing for BPE training.")
-        chunk_boundaries = find_chunk_boundaries(
-            Path(input_path).open("rb"),
-            desired_num_chunks=cpu_count(),
-            split_special_token=special_tokens[0].encode() if special_tokens else b"<|endoftext|>",
-        )
+    chunk_boundaries = find_chunk_boundaries(
+        Path(input_path).open("rb"),
+        desired_num_chunks=cpu_count(),
+        split_special_token=special_tokens[0].encode() if special_tokens else b"<|endoftext|>",
+    )
+    boundaries = list(zip(chunk_boundaries, chunk_boundaries[1:]))
 
-        boundaries = list(zip(chunk_boundaries, chunk_boundaries[1:]))
+    with Pool(cpu_count()) as pool:
+        chunk_results = pool.starmap(
+            build_frequencies,
+            ((input_path, boundary, special_tokens) for boundary in boundaries),
+        )
 
     frequencies_for_pre_token: dict[tuple[bytes, ...], int] = Counter()
     frequencies_for_pairs: dict[tuple[bytes, bytes], int] = Counter()
-    with Pool(cpu_count()) as pool:
-        for chunked_frequencies_for_pre_token, chunked_frequencies_for_pairs in pool.starmap(
-            build_frequencies,
-            ((input_path, boundary, special_tokens) for boundary in boundaries),
-        ):
-            frequencies_for_pre_token.update(chunked_frequencies_for_pre_token)
-            frequencies_for_pairs.update(chunked_frequencies_for_pairs)
+    for chunked_frequencies_for_pre_token, chunked_frequencies_for_pairs in chunk_results:
+        frequencies_for_pre_token.update(chunked_frequencies_for_pre_token)
+        frequencies_for_pairs.update(chunked_frequencies_for_pairs)
 
     return frequencies_for_pre_token, frequencies_for_pairs
 

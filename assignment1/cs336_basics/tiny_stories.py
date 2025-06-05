@@ -1,4 +1,3 @@
-import os
 import pathlib
 import time
 
@@ -8,9 +7,6 @@ TINY_STORIES_PATH = pathlib.Path(__file__).joinpath("..", "..", "data", "TinySto
 MAX_VOCAB_SIZE = 10_000
 
 if __name__ == "__main__":
-    # Enable multiprocessing for BPE training
-    os.environ["CS336_BPE_ENABLE_MULTIPROCESSING"] = "1"
-
     start = time.perf_counter()
     vocabulary, merges = train_bpe(TINY_STORIES_PATH, MAX_VOCAB_SIZE, ["<|endoftext|>"])
     duration = time.perf_counter() - start
