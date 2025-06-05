@@ -18,13 +18,7 @@ class BPETokenizer:
         """
         self.token_for_id = vocab
         self.id_for_token = {token: token_id for token_id, token in self.token_for_id.items()}
-        self.merged_token_for_pair = {
-            (
-                self.id_for_token[token_1],
-                self.id_for_token[token_2],
-            ): merge_id
-            for merge_id, (token_1, token_2) in enumerate(merges)
-        }
+        self.id_for_merge = {merge: merge_id for merge_id, merge in enumerate(merges)}
         self.special_tokens = special_tokens or []
 
     @classmethod
@@ -64,18 +58,14 @@ class BPETokenizer:
         """
         Tokenize a pre-tokenized input into a sequence of token IDs.
         """
-        # If the pre-token in its entirety is in our vocabulary, return its ID directly.
-        if len(pre_token) == 1 and (token_id := self.id_for_token.get(pre_token[0])):
-            return [token_id]
-
-        # Otherwise, deconstruct the pre token into its constituent tokens and return their IDs.
-        token_ids = [self.id_for_token[i] for i in pre_token]
-        while len(token_ids) > 1:
+        # Deconstruct the pre token into its constituent tokens and return their IDs.
+        pre_token_list = list(pre_token)
+        while len(pre_token_list) > 1:
             merge_positions: list[tuple[int, int]] = []
-            for idx, pair in enumerate(zip(token_ids, token_ids[1:])):
-                merge_id = self.merged_token_for_pair.get(pair)
+            for idx, pair in enumerate(zip(pre_token_list, pre_token_list[1:])):
+                merge_id = self.id_for_merge.get(pair)
 
-                if merge_id:
+                if merge_id is not None:
                     merge_positions.append((merge_id, idx))
 
             # If no pairs are found, break the loop
@@ -85,27 +75,13 @@ class BPETokenizer:
             # Apply the merge in the same order of creation
             merge_id_to_process, _ = min(merge_positions)
 
-            merge_positions_to_process = {idx for (merge_id, idx) in merge_positions if merge_id == merge_id_to_process}
+            merge_position = min(idx for (merge_id, idx) in merge_positions if merge_id == merge_id_to_process)
+            merged_bytes = b"".join((pre_token_list[merge_position], pre_token_list[merge_position + 1]))
 
-            new_token_ids = []
-            idx = 0
-            while idx < len(token_ids):
-                if idx in merge_positions_to_process:
-                    merged_token = b"".join(
-                        (
-                            self.token_for_id[token_ids[idx]],
-                            self.token_for_id[token_ids[idx + 1]],
-                        )
-                    )
-                    new_token_ids.append(self.id_for_token[merged_token])
+            pre_token_list[merge_position] = merged_bytes
+            del pre_token_list[merge_position + 1]
 
-                    idx += 2
-                else:
-                    new_token_ids.append(token_ids[idx])
-
-                    idx += 1
-
-            token_ids = new_token_ids
+        token_ids = [self.id_for_token[i] for i in pre_token_list]
 
         return token_ids
 
