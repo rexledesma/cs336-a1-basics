@@ -2,7 +2,7 @@ from math import sqrt
 
 import torch
 import torch.nn as nn
-from einops import einsum
+from einops import einsum, reduce
 
 
 class Linear(nn.Module):
@@ -102,7 +102,7 @@ class RMSNorm(nn.Module):
         in_dtype = x.dtype
         x = x.to(torch.float32)
 
-        rms = torch.sqrt(torch.square(x).mean(dim=-1, keepdim=True) + self.eps)
-        rms_norm = (x / rms) * self.weight
+        rms = torch.sqrt(reduce(torch.square(x), "... d_model -> ... 1", "mean") + self.eps)
+        rms_norm = einsum(x / rms, self.weight, "... d_model, d_model -> ... d_model")
 
         return rms_norm.to(in_dtype)
