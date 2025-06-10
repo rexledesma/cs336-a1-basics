@@ -84,8 +84,8 @@ class SwiGLU(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         w1x = self.w1(x)
-        silu = w1x * torch.sigmoid(w1x)
-        glu = silu * self.w3(x)
+        silu = einsum(w1x, torch.sigmoid(w1x), "... d_ff, ... d_ff -> ... d_ff")
+        glu = einsum(silu, self.w3(x), "... d_ff, ... d_ff -> ... d_ff")
         swiglu = self.w2(glu)
 
         return swiglu
