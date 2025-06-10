@@ -13,15 +13,6 @@ class Linear(nn.Module):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
-        """
-        Initialize a linear layer with the specified input and output features.
-
-        Args:
-            in_features (int): Number of input features.
-            out_features (int): Number of output features.
-            device (torch.device | None, optional): Device to place the layer on. Defaults to None.
-            dtype (torch.dtype | None, optional): Data type of the layer's parameters. Defaults to None.
-        """
         super().__init__()
 
         std = sqrt(2.0 / (in_features + out_features))
@@ -36,15 +27,6 @@ class Linear(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the linear layer.
-
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, in_features).
-
-        Returns:
-            torch.Tensor: Output tensor of shape (batch_size, out_features).
-        """
         return einsum(self.weight, x, "d_out d_in, ... d_in -> ... d_out")
 
 
@@ -56,15 +38,6 @@ class Embedding(nn.Module):
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
-        """
-        Initialize an embedding layer with the specified number of embeddings and embedding dimension.
-
-        Args:
-            num_embeddings (int): Size of the vocabulary.
-            embedding_dim (int): Dimension of each embedding.
-            device (torch.device | None, optional): Device to place the layer on. Defaults to None.
-            dtype (torch.dtype | None, optional): Data type of the layer's parameters. Defaults to None.
-        """
         super().__init__()
 
         self.weight = nn.Parameter(
@@ -78,15 +51,6 @@ class Embedding(nn.Module):
         )
 
     def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        """
-        Lookup the embedding vectors for the given token IDs.
-
-        Args:
-            token_ids (torch.Tensor): Input tensor of shape (batch_size, sequence_length) containing token IDs.
-
-        Returns:
-            torch.Tensor: Output tensor of shape (batch_size, sequence_length, embedding_dim).
-        """
         return self.weight[token_ids]
 
 
@@ -95,6 +59,7 @@ class RMSNorm(nn.Module):
         self, d_model: int, eps: float = 1e-5, device: torch.device | None = None, dtype: torch.dtype | None = None
     ):
         super().__init__()
+
         self.weight = nn.Parameter(torch.ones(d_model, device=device, dtype=dtype))
         self.eps = eps
 
