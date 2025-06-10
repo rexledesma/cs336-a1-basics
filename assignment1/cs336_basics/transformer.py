@@ -71,3 +71,21 @@ class RMSNorm(nn.Module):
         rms_norm = einsum(x / rms, self.weight, "... d_model, d_model -> ... d_model")
 
         return rms_norm.to(in_dtype)
+
+
+class SwiGLU(nn.Module):
+    def __init__(self, d_model: int, d_ff: int | None = None):
+        super().__init__()
+
+        d_ff = int((8 / 3 * d_model) // 64 + 1) * 64 if d_ff is None else d_ff
+        self.w1 = Linear(d_model, d_ff)
+        self.w2 = Linear(d_ff, d_model)
+        self.w3 = Linear(d_model, d_ff)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        w1x = self.w1(x)
+        silu = w1x * torch.sigmoid(w1x)
+        glu = silu * self.w3(x)
+        swiglu = self.w2(glu)
+
+        return swiglu
