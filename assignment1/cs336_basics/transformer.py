@@ -67,14 +67,13 @@ class Embedding(nn.Module):
         """
         super().__init__()
 
-        std = sqrt(2.0 / (num_embeddings + embedding_dim))
         self.weight = nn.Parameter(
             nn.init.trunc_normal_(
                 torch.empty((num_embeddings, embedding_dim), device=device, dtype=dtype),
                 mean=0.0,
-                std=std,
-                a=-3 * std,
-                b=3 * std,
+                std=1,
+                a=-3,
+                b=3,
             )
         )
 
