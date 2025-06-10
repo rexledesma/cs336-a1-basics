@@ -88,3 +88,21 @@ class Embedding(nn.Module):
             torch.Tensor: Output tensor of shape (batch_size, sequence_length, embedding_dim).
         """
         return self.weight[token_ids]
+
+
+class RMSNorm(nn.Module):
+    def __init__(
+        self, d_model: int, eps: float = 1e-5, device: torch.device | None = None, dtype: torch.dtype | None = None
+    ):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(d_model, device=device, dtype=dtype))
+        self.eps = eps
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        in_dtype = x.dtype
+        x = x.to(torch.float32)
+
+        rms = torch.sqrt(torch.square(x).mean(dim=-1, keepdim=True) + self.eps)
+        rms_norm = (x / rms) * self.weight
+
+        return rms_norm.to(in_dtype)
