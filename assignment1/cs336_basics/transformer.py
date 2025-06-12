@@ -127,3 +127,17 @@ class RotaryPositionalEmbedding(nn.Module):
         x_out = x * cos + x_perm * sin
 
         return x_out
+
+
+class Softmax(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x: torch.Tensor, dim: int) -> torch.Tensor:
+        # Subtract max for numerical stability
+        x_max = torch.max(x, dim=dim, keepdim=True)[0]
+        x = x - x_max
+
+        exp_x = torch.exp(x)
+        sum_exp = torch.sum(exp_x, dim=dim, keepdim=True)
+        return exp_x / sum_exp
