@@ -2,7 +2,7 @@ from math import sqrt
 
 import torch
 import torch.nn as nn
-from einops import einsum, reduce
+from einops import einsum, rearrange, reduce
 
 
 class Linear(nn.Module):
@@ -107,7 +107,7 @@ class RotaryPositionalEmbedding(nn.Module):
 
         # Calculate inverse frequencies and compute angles using einops
         inv_freq = 1.0 / (theta ** (dim / d_k))
-        angle = einsum(position, inv_freq, "seq_len, d_k -> seq_len d_k")
+        angle = einsum(position, inv_freq, "seq_len, d_k -> seq_len d_k").repeat_interleave(2, -1)
 
         # Register as non-persistent buffers (they don't need to be saved in state_dict)
         self.register_buffer("cos", angle.cos(), persistent=False)
@@ -121,10 +121,9 @@ class RotaryPositionalEmbedding(nn.Module):
         # Reshape input to separate pairs of dimensions
         x1 = x[..., ::2]
         x2 = x[..., 1::2]
+        x_perm = rearrange(torch.stack([-x2, x1], dim=-1), "... d_k pair -> ... (d_k pair)")
 
         # Apply rotation to each pair
-        x_out = torch.empty_like(x)
-        x_out[..., ::2] = x1 * cos - x2 * sin
-        x_out[..., 1::2] = x1 * sin + x2 * cos
+        x_out = x * cos + x_perm * sin
 
         return x_out
