@@ -89,3 +89,42 @@ class SwiGLU(nn.Module):
         swiglu = self.w2(glu)
 
         return swiglu
+
+
+class RotaryPositionalEmbedding(nn.Module):
+    def __init__(
+        self,
+        theta: float,
+        d_k: int,
+        max_seq_len: int,
+        device: torch.device | None = None,
+    ):
+        super().__init__()
+
+        # Create position and dimension indices
+        position = torch.arange(max_seq_len)
+        dim = torch.arange(1, d_k // 2 + 1).float()
+
+        # Calculate inverse frequencies and compute angles using einops
+        inv_freq = 1.0 / (theta ** (2.0 * dim / d_k))
+        angle = einsum(position, inv_freq, "seq_len, d_k -> seq_len d_k")
+
+        # Duplicate angles for each pair of dimensions
+        angle = angle.repeat_interleave(2, dim=-1)
+
+        # Register as non-persistent buffers (they don't need to be saved in state_dict)
+        self.register_buffer("cos", angle.cos(), persistent=False)
+        self.register_buffer("sin", angle.sin(), persistent=False)
+
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        # Get the rotation matrices for the given positions
+        cos = self.get_buffer("cos")[token_positions]
+        sin = self.get_buffer("sin")[token_positions]
+
+        # Permute pairs of dimensions and alternate signs, then interleave
+        x_perm = torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1).flatten(-2)
+
+        # Apply rotation using elementwise multiplication
+        x_embed = x * cos + (x_perm * sin)
+
+        return x_embed
