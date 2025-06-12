@@ -103,14 +103,11 @@ class RotaryPositionalEmbedding(nn.Module):
 
         # Create position and dimension indices
         position = torch.arange(max_seq_len)
-        dim = torch.arange(1, d_k // 2 + 1).float()
+        dim = torch.arange(0, d_k, 2).float()
 
         # Calculate inverse frequencies and compute angles using einops
-        inv_freq = 1.0 / (theta ** (2.0 * dim / d_k))
+        inv_freq = 1.0 / (theta ** (dim / d_k))
         angle = einsum(position, inv_freq, "seq_len, d_k -> seq_len d_k")
-
-        # Duplicate angles for each pair of dimensions
-        angle = angle.repeat_interleave(2, dim=-1)
 
         # Register as non-persistent buffers (they don't need to be saved in state_dict)
         self.register_buffer("cos", angle.cos(), persistent=False)
@@ -121,10 +118,13 @@ class RotaryPositionalEmbedding(nn.Module):
         cos = self.get_buffer("cos")[token_positions]
         sin = self.get_buffer("sin")[token_positions]
 
-        # Permute pairs of dimensions and alternate signs, then interleave
-        x_perm = torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1).flatten(-2)
+        # Reshape input to separate pairs of dimensions
+        x1 = x[..., ::2]
+        x2 = x[..., 1::2]
 
-        # Apply rotation using elementwise multiplication
-        x_embed = x * cos + (x_perm * sin)
+        # Apply rotation to each pair
+        x_out = torch.empty_like(x)
+        x_out[..., ::2] = x1 * cos - x2 * sin
+        x_out[..., 1::2] = x1 * sin + x2 * cos
 
-        return x_embed
+        return x_out
