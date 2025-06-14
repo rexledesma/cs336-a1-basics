@@ -18,6 +18,7 @@ from cs336_basics.transformer import (
     Linear,
     RMSNorm,
     RotaryPositionalEmbedding,
+    SiLU,
     Softmax,
     SwiGLU,
     Transformer,
@@ -455,7 +456,9 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
         Float[Tensor,"..."]: of with the same shape as `in_features` with the output of applying
         SiLU to each element.
     """
-    raise NotImplementedError
+    silu = SiLU()
+
+    return silu(in_features)
 
 
 def run_get_batch(
