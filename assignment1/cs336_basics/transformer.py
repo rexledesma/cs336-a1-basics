@@ -82,18 +82,17 @@ class SiLU(nn.Module):
 
 
 class SwiGLU(nn.Module):
-    def __init__(self, d_model: int, d_ff: int | None = None):
+    def __init__(self, d_model: int, d_ff: int):
         super().__init__()
 
-        d_ff = int((8 / 3 * d_model) // 64 + 1) * 64 if d_ff is None else d_ff
         self.w1 = Linear(d_model, d_ff)
+        self.silu = SiLU()
         self.w2 = Linear(d_ff, d_model)
         self.w3 = Linear(d_model, d_ff)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        w1x = self.w1(x)
-        silu = einsum(w1x, torch.sigmoid(w1x), "... d_ff, ... d_ff -> ... d_ff")
-        glu = einsum(silu, self.w3(x), "... d_ff, ... d_ff -> ... d_ff")
+        gate = self.silu(self.w1(x))
+        glu = gate * self.w3(x)
         swiglu = self.w2(glu)
 
         return swiglu
