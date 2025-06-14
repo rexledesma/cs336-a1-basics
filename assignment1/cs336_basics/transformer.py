@@ -190,20 +190,48 @@ class CausalMultiHeadSelfAttention(nn.Module):
 
         multi_head_attention = rearrange(self.attention(Q, K, V, mask), "... h seq d_k -> ... seq (h d_k)")
 
-        return self.wo(multi_head_attention)
+        return self.output_proj(multi_head_attention)
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, d_ff: int, rope: RotaryPositionalEmbedding | None = None):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, rope: RotaryPositionalEmbedding):
         super().__init__()
 
-        self.rms_norm1 = RMSNorm(d_model)
-        self.attention = CausalMultiHeadSelfAttention(d_model, num_heads, rope)
-        self.rms_norm2 = RMSNorm(d_model)
+        self.ln1 = RMSNorm(d_model)
+        self.attn = CausalMultiHeadSelfAttention(d_model, num_heads, rope)
+        self.ln2 = RMSNorm(d_model)
         self.ffn = SwiGLU(d_model, d_ff)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        y = x + self.attention(self.rms_norm1(x))
-        z = y + self.ffn(self.rms_norm2(y))
+        y = x + self.attn(self.ln1(x))
+        z = y + self.ffn(self.ln2(y))
 
         return z
+
+
+class Transformer(nn.Module):
+    def __init__(
+        self,
+        d_model: int,
+        num_heads: int,
+        d_ff: int,
+        vocab_size: int,
+        context_length: int,
+        num_layers: int,
+        rope_theta: float,
+    ):
+        super().__init__()
+
+        d_k = d_model // num_heads
+        rope = RotaryPositionalEmbedding(rope_theta, d_k, context_length)
+
+        self.token_embeddings = Embedding(vocab_size, d_model)
+        self.layers = nn.Sequential(*(TransformerBlock(d_model, num_heads, d_ff, rope) for _ in range(num_layers)))
+        self.ln_final = RMSNorm(d_model)
+        self.lm_head = Linear(d_model, vocab_size)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        tokens = self.token_embeddings(x)
+        logits = self.lm_head(self.ln_final(self.layers(tokens)))
+
+        return logits
