@@ -141,3 +141,23 @@ class Softmax(nn.Module):
         exp_x = torch.exp(x)
         sum_exp = torch.sum(exp_x, dim=dim, keepdim=True)
         return exp_x / sum_exp
+
+
+class Attention(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.softmax = Softmax()
+
+    def forward(self, Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, M: torch.Tensor | None = None) -> torch.Tensor:
+        d_k = Q.shape[-1]
+
+        scaled_logits = einsum(Q, K, "... n d_k, ... m d_k -> ... n m") / sqrt(d_k)
+
+        if M is not None:
+            scaled_logits[~M] = -torch.inf
+
+        probs = self.softmax(scaled_logits, dim=-1)
+        attention = einsum(probs, V, "... n m, ... m d_v -> ... n d_v")
+
+        return attention
