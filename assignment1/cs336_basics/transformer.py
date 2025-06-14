@@ -168,17 +168,17 @@ class CausalMultiHeadSelfAttention(nn.Module):
         super().__init__()
 
         self.h: int = num_heads
-        self.wq = Linear(d_model, d_model)
-        self.wk = Linear(d_model, d_model)
-        self.wv = Linear(d_model, d_model)
-        self.wo = Linear(d_model, d_model)
+        self.q_proj = Linear(d_model, d_model)
+        self.k_proj = Linear(d_model, d_model)
+        self.v_proj = Linear(d_model, d_model)
+        self.output_proj = Linear(d_model, d_model)
         self.attention = Attention()
         self.rope = rope
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        Q = rearrange(self.wq(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
-        K = rearrange(self.wk(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
-        V = rearrange(self.wv(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        Q = rearrange(self.q_proj(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        K = rearrange(self.k_proj(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        V = rearrange(self.v_proj(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
 
         seq_len = Q.shape[-2]
         mask = ~torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()

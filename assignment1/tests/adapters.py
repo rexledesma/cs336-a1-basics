@@ -170,10 +170,10 @@ def run_multihead_self_attention(
     multi_head_self_attention = CausalMultiHeadSelfAttention(d_model, num_heads)
     multi_head_self_attention.load_state_dict(
         {
-            "wq.weight": q_proj_weight,
-            "wk.weight": k_proj_weight,
-            "wv.weight": v_proj_weight,
-            "wo.weight": o_proj_weight,
+            "q_proj.weight": q_proj_weight,
+            "k_proj.weight": k_proj_weight,
+            "v_proj.weight": v_proj_weight,
+            "output_proj.weight": o_proj_weight,
         }
     )
 
@@ -221,10 +221,10 @@ def run_multihead_self_attention_with_rope(
     multi_head_self_attention = CausalMultiHeadSelfAttention(d_model, num_heads, rope)
     multi_head_self_attention.load_state_dict(
         {
-            "wq.weight": q_proj_weight,
-            "wk.weight": k_proj_weight,
-            "wv.weight": v_proj_weight,
-            "wo.weight": o_proj_weight,
+            "q_proj.weight": q_proj_weight,
+            "k_proj.weight": k_proj_weight,
+            "v_proj.weight": v_proj_weight,
+            "output_proj.weight": o_proj_weight,
         }
     )
 
@@ -327,19 +327,7 @@ def run_transformer_block(
     """
     rope = RotaryPositionalEmbedding(theta, d_model // num_heads, max_seq_len)
     transformer_block = TransformerBlock(d_model, num_heads, d_ff, rope)
-    transformer_block.load_state_dict(
-        {
-            "rms_norm1.weight": weights["ln1.weight"],
-            "attention.wq.weight": weights["attn.q_proj.weight"],
-            "attention.wk.weight": weights["attn.k_proj.weight"],
-            "attention.wv.weight": weights["attn.v_proj.weight"],
-            "attention.wo.weight": weights["attn.output_proj.weight"],
-            "rms_norm2.weight": weights["ln2.weight"],
-            "ffn.w1.weight": weights["ffn.w1.weight"],
-            "ffn.w2.weight": weights["ffn.w2.weight"],
-            "ffn.w3.weight": weights["ffn.w3.weight"],
-        }
-    )
+    transformer_block.load_state_dict(weights)
 
     return transformer_block(in_features)
 
