@@ -167,7 +167,7 @@ class CausalMultiHeadSelfAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, rope: RotaryPositionalEmbedding | None = None):
         super().__init__()
 
-        self.h = num_heads
+        self.h: int = num_heads
         self.wq = Linear(d_model, d_model)
         self.wk = Linear(d_model, d_model)
         self.wv = Linear(d_model, d_model)
@@ -191,3 +191,19 @@ class CausalMultiHeadSelfAttention(nn.Module):
         multi_head_attention = rearrange(self.attention(Q, K, V, mask), "... h seq d_k -> ... seq (h d_k)")
 
         return self.wo(multi_head_attention)
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, d_model: int, num_heads: int, d_ff: int, rope: RotaryPositionalEmbedding | None = None):
+        super().__init__()
+
+        self.rms_norm1 = RMSNorm(d_model)
+        self.attention = CausalMultiHeadSelfAttention(d_model, num_heads, rope)
+        self.rms_norm2 = RMSNorm(d_model)
+        self.ffn = SwiGLU(d_model, d_ff)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = x + self.attention(self.rms_norm1(x))
+        z = y + self.ffn(self.rms_norm2(y))
+
+        return z

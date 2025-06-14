@@ -20,6 +20,7 @@ from cs336_basics.transformer import (
     RotaryPositionalEmbedding,
     Softmax,
     SwiGLU,
+    TransformerBlock,
 )
 
 
@@ -324,7 +325,23 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    rope = RotaryPositionalEmbedding(theta, d_model // num_heads, max_seq_len)
+    transformer_block = TransformerBlock(d_model, num_heads, d_ff, rope)
+    transformer_block.load_state_dict(
+        {
+            "rms_norm1.weight": weights["ln1.weight"],
+            "attention.wq.weight": weights["attn.q_proj.weight"],
+            "attention.wk.weight": weights["attn.k_proj.weight"],
+            "attention.wv.weight": weights["attn.v_proj.weight"],
+            "attention.wo.weight": weights["attn.output_proj.weight"],
+            "rms_norm2.weight": weights["ln2.weight"],
+            "ffn.w1.weight": weights["ffn.w1.weight"],
+            "ffn.w2.weight": weights["ffn.w2.weight"],
+            "ffn.w3.weight": weights["ffn.w3.weight"],
+        }
+    )
+
+    return transformer_block(in_features)
 
 
 def run_transformer_lm(
