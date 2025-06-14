@@ -164,7 +164,7 @@ class Attention(nn.Module):
 
 
 class CausalMultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int):
+    def __init__(self, d_model: int, num_heads: int, rope: RotaryPositionalEmbedding | None = None):
         super().__init__()
 
         self.h = num_heads
@@ -173,6 +173,7 @@ class CausalMultiHeadSelfAttention(nn.Module):
         self.wv = Linear(d_model, d_model)
         self.wo = Linear(d_model, d_model)
         self.attention = Attention()
+        self.rope = rope
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         Q = rearrange(self.wq(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
@@ -181,6 +182,11 @@ class CausalMultiHeadSelfAttention(nn.Module):
 
         seq_len = Q.shape[-2]
         mask = ~torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+
+        if self.rope:
+            positions = torch.arange(seq_len)
+            Q = self.rope(Q, positions)
+            K = self.rope(K, positions)
 
         multi_head_attention = rearrange(self.attention(Q, K, V, mask), "... h seq d_k -> ... seq (h d_k)")
 
