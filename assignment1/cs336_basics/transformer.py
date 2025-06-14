@@ -155,9 +155,33 @@ class Attention(nn.Module):
         scaled_logits = einsum(Q, K, "... n d_k, ... m d_k -> ... n m") / sqrt(d_k)
 
         if M is not None:
-            scaled_logits[~M] = -torch.inf
+            scaled_logits = scaled_logits.masked_fill(~M, -torch.inf)
 
         probs = self.softmax(scaled_logits, dim=-1)
         attention = einsum(probs, V, "... n m, ... m d_v -> ... n d_v")
 
         return attention
+
+
+class CausalMultiHeadSelfAttention(nn.Module):
+    def __init__(self, d_model: int, num_heads: int):
+        super().__init__()
+
+        self.h = num_heads
+        self.wq = Linear(d_model, d_model)
+        self.wk = Linear(d_model, d_model)
+        self.wv = Linear(d_model, d_model)
+        self.wo = Linear(d_model, d_model)
+        self.attention = Attention()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        Q = rearrange(self.wq(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        K = rearrange(self.wk(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
+        V = rearrange(self.wv(x), "... seq (h d_k) -> ... h seq d_k", h=self.h)
+
+        seq_len = Q.shape[-2]
+        mask = ~torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+
+        multi_head_attention = rearrange(self.attention(Q, K, V, mask), "... h seq d_k -> ... seq (h d_k)")
+
+        return self.wo(multi_head_attention)
