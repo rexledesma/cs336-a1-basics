@@ -67,7 +67,7 @@ class RMSNorm(nn.Module):
         in_dtype = x.dtype
         x = x.to(torch.float32)
 
-        rms = torch.sqrt(reduce(torch.square(x), "... d_model -> ... 1", "mean") + self.eps)
+        rms = torch.sqrt(reduce(x.square(), "... d_model -> ... 1", "mean") + self.eps)
         rms_norm = einsum(x / rms, self.weight, "... d_model, d_model -> ... d_model")
 
         return rms_norm.to(in_dtype)
@@ -78,7 +78,7 @@ class SiLU(nn.Module):
         super().__init__()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.sigmoid(x) * x
+        return x.sigmoid() * x
 
 
 class SwiGLU(nn.Module):
@@ -141,13 +141,11 @@ class Softmax(nn.Module):
         super().__init__()
 
     def forward(self, x: torch.Tensor, dim: int) -> torch.Tensor:
-        # Subtract max for numerical stability
-        x_max = torch.max(x, dim=dim, keepdim=True)[0]
-        x = x - x_max
+        x_stable = x - x.max(dim=dim, keepdim=True).values
+        x_exp = x_stable.exp()
+        x_exp_sum = x_exp.sum(dim=dim, keepdim=True)
 
-        exp_x = torch.exp(x)
-        sum_exp = torch.sum(exp_x, dim=dim, keepdim=True)
-        return exp_x / sum_exp
+        return x_exp / x_exp_sum
 
 
 class Attention(nn.Module):

@@ -4,20 +4,12 @@ from collections.abc import Callable
 import torch
 
 
-def cross_entropy(inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-    inputs_max = torch.max(inputs, dim=-1, keepdim=True)[0]
-    inputs = inputs - inputs_max
+def cross_entropy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    logits_stable = logits - logits.max(dim=-1, keepdim=True).values
+    logits_exp_sum = logits_stable.exp().sum(dim=-1, keepdim=True)
+    loss = -logits_stable[torch.arange(logits.size(0)), targets] + torch.log(logits_exp_sum)
 
-    exp_inputs = torch.exp(inputs)
-    sum_exp = torch.sum(exp_inputs, dim=-1, keepdim=True)
-    log_probs = inputs - torch.log(sum_exp)
-
-    batch_size = inputs.shape[0]
-    target_log_probs = log_probs[torch.arange(batch_size), targets]
-
-    loss = -torch.mean(target_log_probs)
-
-    return loss
+    return loss.mean()
 
 
 class AdamW(torch.optim.Optimizer):
