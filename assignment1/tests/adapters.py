@@ -9,6 +9,7 @@ import torch
 from jaxtyping import Float, Int
 from torch import Tensor
 
+from cs336_basics.optimizer import cross_entropy
 from cs336_basics.tokenizer import BPETokenizer
 from cs336_basics.train_bpe import train_bpe
 from cs336_basics.transformer import (
@@ -517,7 +518,7 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    return cross_entropy(inputs, targets)
 
 
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
