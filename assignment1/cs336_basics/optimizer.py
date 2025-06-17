@@ -12,6 +12,16 @@ def cross_entropy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     return loss.mean()
 
 
+def cosine_lr_schedule(t: int, lr_max: float, lr_min: float, t_w: int, t_c: int) -> float:
+    if t < t_w:
+        return t * lr_max / t_w
+
+    if t <= t_c:
+        return lr_min + 0.5 * (1 + math.cos((t - t_w) / (t_c - t_w) * math.pi)) * (lr_max - lr_min)
+
+    return lr_min
+
+
 def clip_grad_norm(parameters: Iterable[torch.nn.Parameter], max_norm: float, eps: float = 1e-6):
     parameters = list(parameters)
     gradients = [p.grad for p in parameters if p.grad is not None]
