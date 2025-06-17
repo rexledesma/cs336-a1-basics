@@ -1,5 +1,5 @@
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 import torch
 
@@ -10,6 +10,19 @@ def cross_entropy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     loss = -logits_stable[torch.arange(logits.size(0)), targets] + torch.log(logits_exp_sum)
 
     return loss.mean()
+
+
+def clip_grad_norm(parameters: Iterable[torch.nn.Parameter], max_norm: float, eps: float = 1e-6):
+    parameters = list(parameters)
+    gradients = [p.grad for p in parameters if p.grad is not None]
+    total_norm = torch.linalg.vector_norm(torch.cat(gradients))
+
+    for p in parameters:
+        if p.grad is None:
+            continue
+
+        if total_norm > max_norm:
+            p.grad *= max_norm / (total_norm + eps)
 
 
 class AdamW(torch.optim.Optimizer):
