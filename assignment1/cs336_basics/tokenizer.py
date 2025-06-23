@@ -1,5 +1,5 @@
-import itertools
 from collections.abc import Iterable, Iterator
+from itertools import chain, pairwise
 
 from cs336_basics.train_bpe import pre_tokenize
 
@@ -19,7 +19,7 @@ class BPETokenizer:
     def encode(self, text: str) -> list[int]:
         pre_tokens = pre_tokenize(text.encode(), self.special_tokens)
 
-        token_ids = list(itertools.chain.from_iterable(self.tokenize(pre_token) for pre_token in pre_tokens))
+        token_ids = list(chain.from_iterable(self.tokenize(pre_token) for pre_token in pre_tokens))
 
         return token_ids
 
@@ -28,7 +28,7 @@ class BPETokenizer:
         pre_token_list = list(pre_token)
         while len(pre_token_list) > 1:
             merge_positions: list[tuple[int, int]] = []
-            for idx, pair in enumerate(itertools.pairwise(pre_token_list)):
+            for idx, pair in enumerate(pairwise(pre_token_list)):
                 merge_id = self.id_for_merge.get(pair)
 
                 if merge_id is not None:
