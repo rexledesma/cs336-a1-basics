@@ -30,6 +30,11 @@ include = ["cs336_basics"]
 [tool.uv]
 package = true
 python-preference = "managed"
+cache-keys = [
+    {file = "pyproject.toml"},
+    {file = "cs336_basics/tokenizer-rs/Cargo.toml"},
+    {file = "cs336_basics/tokenizer-rs/**/*.rs"},
+]
 
 [tool.uv.sources]
 tokenizer-rs = { path = "cs336_basics/tokenizer-rs" }
@@ -49,6 +54,7 @@ line-length = 120
 
 [dependency-groups]
 dev = [
+    "maturin-import-hook>=0.3.0",
     "scalene>=1.5.51",
 ]
 

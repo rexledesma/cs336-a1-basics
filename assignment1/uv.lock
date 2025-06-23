@@ -129,6 +129,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "maturin-import-hook" },
     { name = "scalene" },
 ]
 
@@ -151,7 +152,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "scalene", specifier = ">=1.5.51" }]
+dev = [
+    { name = "maturin-import-hook", specifier = ">=0.3.0" },
+    { name = "scalene", specifier = ">=1.5.51" },
+]
 
 [[package]]
 name = "docker-pycreds"
@@ -342,6 +346,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/0d/80/0985960e4b89922cb5a0bac0ed39c5b96cbc1a536a99f30e8c220a996ed9/MarkupSafe-3.0.2-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:131a3c7689c85f5ad20f9f6fb1b866f402c445b220c19fe4308c0b147ccd2ad9", size = 24098 },
     { url = "https://files.pythonhosted.org/packages/82/78/fedb03c7d5380df2427038ec8d973587e90561b2d90cd472ce9254cf348b/MarkupSafe-3.0.2-cp313-cp313t-win32.whl", hash = "sha256:ba8062ed2cf21c07a9e295d5b8a2a5ce678b913b45fdf68c32d95d6c1291e0b6", size = 15208 },
     { url = "https://files.pythonhosted.org/packages/4f/65/6079a46068dfceaeabb5dcad6d674f5f5c61a6fa5673746f42a9f4c233b3/MarkupSafe-3.0.2-cp313-cp313t-win_amd64.whl", hash = "sha256:e444a31f8db13eb18ada366ab3cf45fd4b31e4db1236a4448f68778c1d1a5a2f", size = 15739 },
+]
+
+[[package]]
+name = "maturin-import-hook"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "filelock" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/75/a1/3b007a4132265d5da19096d6835cd4c7e9908afb9156afb96d19ff190f39/maturin_import_hook-0.3.0.tar.gz", hash = "sha256:cdd51ce267663c437c4aea1bfd5f7ee5884b54a9d866ea924227d68d758bbba2", size = 30785 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9f/55/0c17a1fccec90dffbb1d904d7ddb7971e4e95f994c6264637e8fe66a5b86/maturin_import_hook-0.3.0-py3-none-any.whl", hash = "sha256:f5d20b4bc3056d84170dc08fe655160421b28d2b5128b48f55312315cdbb2cfe", size = 30848 },
 ]
 
 [[package]]
