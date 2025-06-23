@@ -1,5 +1,5 @@
 import math
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 
 import torch
 
@@ -36,7 +36,14 @@ def clip_grad_norm(parameters: Iterable[torch.nn.Parameter], max_norm: float, ep
 
 
 class AdamW(torch.optim.Optimizer):
-    def __init__(self, params, lr: float, weight_decay: float, betas: tuple[float, float], eps: float) -> None:
+    def __init__(
+        self,
+        params: Iterator[torch.nn.Parameter],
+        lr: float,
+        weight_decay: float,
+        betas: tuple[float, float],
+        eps: float,
+    ) -> None:
         defaults = {
             "lr": lr,
             "weight_decay": weight_decay,
