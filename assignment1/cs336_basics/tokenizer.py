@@ -11,18 +11,12 @@ class BPETokenizer:
         merges: list[tuple[bytes, bytes]],
         special_tokens: list[str] | None = None,
     ):
-        """
-        Construct a tokenizer from a given vocabulary, list of merges, and (optionally) a list of special tokens.
-        """
         self.token_for_id = vocab
         self.id_for_token = {token: token_id for token_id, token in self.token_for_id.items()}
         self.id_for_merge = {merge: merge_id for merge_id, merge in enumerate(merges)}
         self.special_tokens = special_tokens or []
 
     def encode(self, text: str) -> list[int]:
-        """
-        Encode an input text into a sequence of token IDs.
-        """
         pre_tokens = pre_tokenize(text.encode(), self.special_tokens)
 
         token_ids = list(itertools.chain.from_iterable(self.tokenize(pre_token) for pre_token in pre_tokens))
@@ -30,9 +24,6 @@ class BPETokenizer:
         return token_ids
 
     def tokenize(self, pre_token: tuple[bytes, ...]) -> list[int]:
-        """
-        Tokenize a pre-tokenized input into a sequence of token IDs.
-        """
         # Deconstruct the pre token into its constituent tokens and return their IDs.
         pre_token_list = list(pre_token)
         while len(pre_token_list) > 1:
@@ -61,17 +52,10 @@ class BPETokenizer:
         return token_ids
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
-        """
-        Given an iterable of strings (e.g., a Python file handle),
-        return a generator that lazily yields token IDs.
-        """
         for text in iterable:
             yield from self.encode(text)
 
     def decode(self, ids: list[int]) -> str:
-        """
-        Decode a sequence of token IDs into text.
-        """
         bytes_list = (self.token_for_id[token_id] for token_id in ids)
         text = b"".join(bytes_list).decode(errors="replace")
 
