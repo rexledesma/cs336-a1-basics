@@ -2,6 +2,7 @@ import os
 import struct
 from collections import Counter
 from collections.abc import Iterator
+from dataclasses import dataclass
 from itertools import pairwise
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
@@ -12,57 +13,56 @@ import regex
 GPT2_TOKENIZER_PATTERN = rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 
-def generate_positions_to_merge(pre_token: tuple[bytes, ...], most_frequent_pair: tuple[bytes, bytes]) -> list[int]:
-    return [position for position, pair in enumerate(pairwise(pre_token)) if pair == most_frequent_pair]
+@dataclass
+class PairIndex:
+    pair: tuple[bytes, bytes]
+    frequency: int
+    pre_tokens: set[tuple[bytes, ...]]
 
 
 def merge(
     frequencies_for_pre_token: dict[tuple[bytes, ...], int],
-    frequencies_for_pair: dict[tuple[bytes, bytes], int],
-    most_frequent_pair: tuple[bytes, bytes],
+    indexes_for_pair: dict[tuple[bytes, bytes], PairIndex],
 ) -> tuple[
     dict[tuple[bytes, ...], int],
-    dict[tuple[bytes, bytes], int],
+    dict[tuple[bytes, bytes], PairIndex],
+    tuple[bytes, bytes],
 ]:
-    new_frequencies_for_pre_token = {}
+    most_frequent_pair = max(indexes_for_pair, key=lambda p: (indexes_for_pair[p].frequency, indexes_for_pair[p].pair))
+    pair_index = indexes_for_pair.pop(most_frequent_pair)
 
-    for pre_token, frequency in frequencies_for_pre_token.items():
+    for pre_token in pair_index.pre_tokens:
+        frequency = frequencies_for_pre_token.pop(pre_token)
+
         new_pre_token = []
-        positions_to_merge = set(generate_positions_to_merge(pre_token, most_frequent_pair))
-
-        idx = 0
-        while idx < len(pre_token):
-            if idx in positions_to_merge:
-                # Decrement frequencies for pairs being replaced
-                if idx > 0:
-                    prev_pair = (pre_token[idx - 1], pre_token[idx])
-                    frequencies_for_pair[prev_pair] -= frequency
-                if idx < len(pre_token) - 2:
-                    next_pair = (pre_token[idx + 1], pre_token[idx + 2])
-                    frequencies_for_pair[next_pair] -= frequency
-
-                # Add the merged token
+        i = 0
+        while i < len(pre_token):
+            if i < len(pre_token) - 1 and (pre_token[i], pre_token[i + 1]) == most_frequent_pair:
                 new_pre_token.append(b"".join(most_frequent_pair))
-                idx += 2
-
-                # Increment frequencies for new pairs
-                if len(new_pre_token) > 1:
-                    new_pair = new_pre_token[-2], new_pre_token[-1]
-                    frequencies_for_pair[new_pair] = frequencies_for_pair.get(new_pair, 0) + frequency
-
-                if idx < len(pre_token):
-                    new_pair = new_pre_token[-1], pre_token[idx]
-                    frequencies_for_pair[new_pair] = frequencies_for_pair.get(new_pair, 0) + frequency
+                i += 2
             else:
-                new_pre_token.append(pre_token[idx])
+                new_pre_token.append(pre_token[i])
+                i += 1
 
-                idx += 1
+        new_pre_token = tuple(new_pre_token)
+        frequencies_for_pre_token[new_pre_token] = frequency
 
-        new_frequencies_for_pre_token[tuple(new_pre_token)] = frequency
+        for pair in pairwise(new_pre_token):
+            pair_index = indexes_for_pair.setdefault(pair, PairIndex(pair, 0, set()))
 
-    frequencies_for_pair.pop(most_frequent_pair)
+            pair_index.frequency += frequency
+            pair_index.pre_tokens.add(new_pre_token)
 
-    return new_frequencies_for_pre_token, frequencies_for_pair
+        for pair in pairwise(pre_token):
+            if pair != most_frequent_pair:
+                pair_index = indexes_for_pair[pair]
+                pair_index.frequency -= frequency
+                pair_index.pre_tokens.discard(pre_token)
+
+                if indexes_for_pair[pair].frequency == 0:
+                    del indexes_for_pair[pair]
+
+    return frequencies_for_pre_token, indexes_for_pair, most_frequent_pair
 
 
 def pre_tokenize(encoded_text: bytes, special_tokens: list[str]) -> Iterator[tuple[bytes, ...]]:
@@ -92,13 +92,18 @@ def pre_tokenize(encoded_text: bytes, special_tokens: list[str]) -> Iterator[tup
             yield struct.unpack("c" * len(pre_token), pre_token)
 
 
-def build_pair_frequencies(frequencies_for_pre_token: dict[tuple[bytes, ...], int]) -> dict[tuple[bytes, bytes], int]:
-    frequencies_for_pair: dict[tuple[bytes, bytes], int] = {}
+def build_indexes_for_pair(
+    frequencies_for_pre_token: dict[tuple[bytes, ...], int],
+) -> dict[tuple[bytes, bytes], PairIndex]:
+    indexes_for_pair: dict[tuple[bytes, bytes], PairIndex] = {}
     for pre_token, frequency in frequencies_for_pre_token.items():
         for pair in pairwise(pre_token):
-            frequencies_for_pair[pair] = frequencies_for_pair.setdefault(pair, 0) + frequency
+            pair_index = indexes_for_pair.setdefault(pair, PairIndex(pair, 0, set()))
 
-    return frequencies_for_pair
+            pair_index.frequency += frequency
+            pair_index.pre_tokens.add(pre_token)
+
+    return indexes_for_pair
 
 
 def find_chunk_boundaries(file: BinaryIO, desired_num_chunks: int, split_special_token: bytes) -> list[int]:
@@ -156,10 +161,7 @@ def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], 
     # Count the number of occurences for each pair of tokens
     frequencies_for_pre_token = Counter(pre_tokens)
 
-    # Get the frequency of pairs
-    frequencies_for_pairs = build_pair_frequencies(frequencies_for_pre_token)
-
-    return frequencies_for_pre_token, frequencies_for_pairs
+    return frequencies_for_pre_token
 
 
 def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens: list[str]):
@@ -176,13 +178,10 @@ def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens:
             ((input_path, boundary, special_tokens) for boundary in boundaries),
         )
 
-    frequencies_for_pre_token: dict[tuple[bytes, ...], int] = Counter()
-    frequencies_for_pairs: dict[tuple[bytes, bytes], int] = Counter()
-    for chunked_frequencies_for_pre_token, chunked_frequencies_for_pairs in chunk_results:
-        frequencies_for_pre_token.update(chunked_frequencies_for_pre_token)
-        frequencies_for_pairs.update(chunked_frequencies_for_pairs)
+    frequencies_for_pre_token = sum(chunk_results, Counter())
+    indexes_for_pair = build_indexes_for_pair(frequencies_for_pre_token)
 
-    return frequencies_for_pre_token, frequencies_for_pairs
+    return frequencies_for_pre_token, indexes_for_pair
 
 
 def train_bpe(
@@ -197,20 +196,16 @@ def train_bpe(
     vocabulary_for_index: dict[int, bytes] = dict(enumerate(initial_vocabulary))
     index_pair_merges: list[tuple[bytes, bytes]] = []
 
-    frequencies_for_pre_token, frequencies_for_pairs = build_frequencies_in_parallel(input_path, special_tokens)
+    frequencies_for_pre_token, indexes_for_pair = build_frequencies_in_parallel(input_path, special_tokens)
 
     # Add special tokens to the vocabulary
     initial_vocabulary_size = len(initial_vocabulary)
     for new_vocab_id in range(initial_vocabulary_size, vocab_size):
-        # Find most common pair
-        most_frequent_pair = max(frequencies_for_pairs, key=lambda p: (frequencies_for_pairs[p], p))
+        frequencies_for_pre_token, indexes_for_pair, most_frequent_pair = merge(
+            frequencies_for_pre_token, indexes_for_pair
+        )
 
-        # Merge the pair
         index_pair_merges.append(most_frequent_pair)
         vocabulary_for_index[new_vocab_id] = b"".join(most_frequent_pair)
-
-        frequencies_for_pre_token, frequencies_for_pairs = merge(
-            frequencies_for_pre_token, frequencies_for_pairs, most_frequent_pair
-        )
 
     return vocabulary_for_index, index_pair_merges
