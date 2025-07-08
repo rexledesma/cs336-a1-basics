@@ -24,6 +24,9 @@ def main(input_path: Path, vocab_size: int):
     merges_path = input_path.joinpath("..", f"{filename}_merges.pkl").resolve()
 
     # Serialize vocabulary and merges
+    vocab_path.unlink(missing_ok=True)
+    merges_path.unlink(missing_ok=True)
+
     pickle.dump(vocabulary, vocab_path.open("wb"))
     pickle.dump(merges, merges_path.open("wb"))
 
