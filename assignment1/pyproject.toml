@@ -20,6 +20,7 @@ dependencies = [
     "wandb>=0.19.7",
     "tokenizer-rs",
     "typer",
+    "pqdict>=1.4.0",
 ]
 
 

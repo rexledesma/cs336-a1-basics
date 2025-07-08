@@ -115,6 +115,7 @@ dependencies = [
     { name = "einx" },
     { name = "jaxtyping" },
     { name = "numpy" },
+    { name = "pqdict" },
     { name = "psutil" },
     { name = "pytest" },
     { name = "regex" },
@@ -140,6 +141,7 @@ requires-dist = [
     { name = "einx", specifier = ">=0.3.0" },
     { name = "jaxtyping", specifier = ">=0.3.0" },
     { name = "numpy" },
+    { name = "pqdict", specifier = ">=1.4.0" },
     { name = "psutil", specifier = ">=6.1.1" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "regex", specifier = ">=2024.11.6" },
@@ -589,6 +591,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/96/2d/02d4312c973c6050a18b314a5ad0b3210edb65a906f868e31c111dede4a6/pluggy-1.5.0.tar.gz", hash = "sha256:2cffa88e94fdc978c4c574f15f9e59b7f4201d439195c3715ca9e2486f1d0cf1", size = 67955 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/88/5f/e351af9a41f866ac3f1fac4ca0613908d9a41741cfcf2228f4ad853b697d/pluggy-1.5.0-py3-none-any.whl", hash = "sha256:44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669", size = 20556 },
+]
+
+[[package]]
+name = "pqdict"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/14/58d3393644b7a576b9b6c969628ccbfd2c324561489d4301fef48538b708/pqdict-1.4.0.tar.gz", hash = "sha256:367dc50818f1df331ed5ef9ba9a793f7b713a1d5ea6bcccd7a72392dc8bc2097", size = 87846 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/3d/fcb3b29976336a0635c858ef593e9f1bfb4b8583a1f41f6456866b428097/pqdict-1.4.0-py2.py3-none-any.whl", hash = "sha256:7c4f9d09cb867b7bfddcc3c56b74badae70c28fdeaad95df637be844103759e5", size = 8857 },
 ]
 
 [[package]]

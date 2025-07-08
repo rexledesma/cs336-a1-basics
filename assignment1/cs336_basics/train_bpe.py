@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 import regex
+from pqdict import pqdict
 from tqdm import tqdm
 
 GPT2_TOKENIZER_PATTERN = rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -23,14 +24,14 @@ class PairIndex:
 
 def merge(
     frequencies_for_pre_token: dict[tuple[bytes, ...], int],
-    indexes_for_pair: dict[tuple[bytes, bytes], PairIndex],
+    index_pqdict: pqdict,  # [tuple[bytes, bytes], PairIndex],
 ) -> tuple[
     dict[tuple[bytes, ...], int],
-    dict[tuple[bytes, bytes], PairIndex],
+    pqdict,
     tuple[bytes, bytes],
 ]:
-    most_frequent_pair = max(indexes_for_pair, key=lambda p: (indexes_for_pair[p].frequency, indexes_for_pair[p].pair))
-    pair_index = indexes_for_pair.pop(most_frequent_pair)
+    pair_index: PairIndex = index_pqdict.popvalue()
+    most_frequent_pair = pair_index.pair
 
     for pre_token in pair_index.pre_tokens:
         frequency = frequencies_for_pre_token.pop(pre_token)
@@ -49,21 +50,28 @@ def merge(
         frequencies_for_pre_token[new_pre_token] = frequency
 
         for pair in pairwise(new_pre_token):
-            pair_index = indexes_for_pair.setdefault(pair, PairIndex(pair, 0, set()))
+            pair_index = index_pqdict.get(pair, PairIndex(pair, 0, set()))
 
             pair_index.frequency += frequency
             pair_index.pre_tokens.add(new_pre_token)
 
+            if pair in index_pqdict:
+                index_pqdict.updateitem(pair, pair_index)
+            else:
+                index_pqdict.additem(pair, pair_index)
+
         for pair in pairwise(pre_token):
             if pair != most_frequent_pair:
-                pair_index = indexes_for_pair[pair]
+                pair_index = index_pqdict[pair]
                 pair_index.frequency -= frequency
                 pair_index.pre_tokens.discard(pre_token)
 
-                if indexes_for_pair[pair].frequency == 0:
-                    del indexes_for_pair[pair]
+                if pair_index.frequency == 0:
+                    del index_pqdict[pair]
+                else:
+                    index_pqdict.updateitem(pair, pair_index)
 
-    return frequencies_for_pre_token, indexes_for_pair, most_frequent_pair
+    return frequencies_for_pre_token, index_pqdict, most_frequent_pair
 
 
 def pre_tokenize(encoded_text: bytes, special_tokens: list[str]) -> Iterator[tuple[bytes, ...]]:
@@ -195,12 +203,15 @@ def train_bpe(
     index_pair_merges: list[tuple[bytes, bytes]] = []
 
     frequencies_for_pre_token, indexes_for_pair = build_frequencies_in_parallel(input_path, special_tokens)
+    index_pqdict = pqdict(
+        indexes_for_pair,
+        key=lambda index: (index.frequency, index.pair),
+        reverse=True,
+    )
 
     initial_vocabulary_size = len(initial_vocabulary)
     for new_vocab_id in tqdm(range(initial_vocabulary_size, vocab_size), desc="vocab"):
-        frequencies_for_pre_token, indexes_for_pair, most_frequent_pair = merge(
-            frequencies_for_pre_token, indexes_for_pair
-        )
+        frequencies_for_pre_token, index_pqdict, most_frequent_pair = merge(frequencies_for_pre_token, index_pqdict)
 
         index_pair_merges.append(most_frequent_pair)
         vocabulary_for_index[new_vocab_id] = b"".join(most_frequent_pair)
