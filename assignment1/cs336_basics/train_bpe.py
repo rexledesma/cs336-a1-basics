@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 import regex
+from tqdm import tqdm
 
 GPT2_TOKENIZER_PATTERN = rb"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -96,7 +97,7 @@ def build_indexes_for_pair(
     frequencies_for_pre_token: dict[tuple[bytes, ...], int],
 ) -> dict[tuple[bytes, bytes], PairIndex]:
     indexes_for_pair: dict[tuple[bytes, bytes], PairIndex] = {}
-    for pre_token, frequency in frequencies_for_pre_token.items():
+    for pre_token, frequency in tqdm(frequencies_for_pre_token.items(), desc="index"):
         for pair in pairwise(pre_token):
             pair_index = indexes_for_pair.setdefault(pair, PairIndex(pair, 0, set()))
 
@@ -155,10 +156,7 @@ def build_frequencies(input_path: str | os.PathLike, boundary: tuple[int, int], 
     file.seek(boundary[0])
     encoded_text = file.read(boundary[1] - boundary[0])
 
-    # Pre-tokenize the input text
     pre_tokens = pre_tokenize(encoded_text, special_tokens)
-
-    # Count the number of occurences for each pair of tokens
     frequencies_for_pre_token = Counter(pre_tokens)
 
     return frequencies_for_pre_token
@@ -178,7 +176,7 @@ def build_frequencies_in_parallel(input_path: str | os.PathLike, special_tokens:
             ((input_path, boundary, special_tokens) for boundary in boundaries),
         )
 
-    frequencies_for_pre_token = sum(chunk_results, Counter())
+    frequencies_for_pre_token = sum(tqdm(chunk_results, desc="frequencies"), Counter())
     indexes_for_pair = build_indexes_for_pair(frequencies_for_pre_token)
 
     return frequencies_for_pre_token, indexes_for_pair
@@ -198,9 +196,8 @@ def train_bpe(
 
     frequencies_for_pre_token, indexes_for_pair = build_frequencies_in_parallel(input_path, special_tokens)
 
-    # Add special tokens to the vocabulary
     initial_vocabulary_size = len(initial_vocabulary)
-    for new_vocab_id in range(initial_vocabulary_size, vocab_size):
+    for new_vocab_id in tqdm(range(initial_vocabulary_size, vocab_size), desc="vocab"):
         frequencies_for_pre_token, indexes_for_pair, most_frequent_pair = merge(
             frequencies_for_pre_token, indexes_for_pair
         )
