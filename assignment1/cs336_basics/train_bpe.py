@@ -30,10 +30,11 @@ def merge(
     pqdict,
     tuple[bytes, bytes],
 ]:
-    pair_index: PairIndex = index_pqdict.popvalue()
-    most_frequent_pair = pair_index.pair
+    most_frequent_pair_index: PairIndex = index_pqdict.popvalue()
+    most_frequent_pair = most_frequent_pair_index.pair
 
-    for pre_token in pair_index.pre_tokens:
+    indexes_to_update: dict[tuple[bytes, bytes], PairIndex] = {}
+    for pre_token in most_frequent_pair_index.pre_tokens:
         frequency = frequencies_for_pre_token.pop(pre_token)
 
         new_pre_token = []
@@ -50,26 +51,22 @@ def merge(
         frequencies_for_pre_token[new_pre_token] = frequency
 
         for pair in pairwise(new_pre_token):
-            pair_index = index_pqdict.get(pair, PairIndex(pair, 0, set()))
+            pair_index = indexes_to_update.setdefault(pair, index_pqdict.get(pair, PairIndex(pair, 0, set())))
 
             pair_index.frequency += frequency
             pair_index.pre_tokens.add(new_pre_token)
 
-            if pair in index_pqdict:
-                index_pqdict.updateitem(pair, pair_index)
-            else:
-                index_pqdict.additem(pair, pair_index)
-
         for pair in pairwise(pre_token):
             if pair != most_frequent_pair:
-                pair_index = index_pqdict[pair]
+                pair_index = indexes_to_update.setdefault(pair, index_pqdict[pair])
                 pair_index.frequency -= frequency
                 pair_index.pre_tokens.discard(pre_token)
 
-                if pair_index.frequency == 0:
-                    del index_pqdict[pair]
-                else:
-                    index_pqdict.updateitem(pair, pair_index)
+    for pair, pair_index in indexes_to_update.items():
+        if pair not in index_pqdict:
+            index_pqdict.additem(pair, pair_index)
+        else:
+            index_pqdict.updateitem(pair, pair_index)
 
     return frequencies_for_pre_token, index_pqdict, most_frequent_pair
 
