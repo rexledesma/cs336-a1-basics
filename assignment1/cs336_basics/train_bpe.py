@@ -168,21 +168,26 @@ class BpeIndex:
     def _update_index(self, most_frequent_pair_index: PairIndex):
         indexes_to_update: dict[tuple[bytes, bytes], PairIndex] = {}
         for pre_token in set(most_frequent_pair_index.pre_tokens):
+            # Return the pre token with occurrences of the pair replaced with its merge
             new_pre_token = merge(pre_token, most_frequent_pair_index.pair)
 
+            # Update the frequency index by replacing the old pre token key with the new pre token
             frequency = self.frequencies_for_pre_token.pop(pre_token)
             self.frequencies_for_pre_token[new_pre_token] = frequency
 
+            # Update the pair index by adding the new pairs
             for pair in pairwise(new_pre_token):
                 pair_index = indexes_to_update.setdefault(pair, self.index_pqdict.get(pair, PairIndex(pair, 0, set())))
                 pair_index.frequency += frequency
                 pair_index.pre_tokens.add(new_pre_token)
 
+            # Update the pair index by removing the old pairs
             for pair in pairwise(pre_token):
                 pair_index = indexes_to_update.setdefault(pair, self.index_pqdict[pair])
                 pair_index.frequency -= frequency
                 pair_index.pre_tokens.discard(pre_token)
 
+        # Update the index and remove the previous most frequent merge
         self.index_pqdict.update(indexes_to_update)
         self.index_pqdict.pop(most_frequent_pair_index.pair)
 
