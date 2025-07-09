@@ -37,7 +37,7 @@ def create_bpe(input_path: Path, vocab_size: int):
 
 
 @app.command()
-def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_lines: int | None):
+def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_lines: int | None = None):
     """Create a BPETokenizer from pickled vocabulary and merges files."""
     tokenizer = BPETokenizer.from_files(vocab_path, merges_path, ["<|endoftext|>"])
 
@@ -52,13 +52,18 @@ def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_lines: in
         text = input_file.read()
 
     # Encode the text
+    start = time.perf_counter()
     token_ids = tokenizer.encode(text)
+    duration = time.perf_counter() - start
 
-    # Write out compression ratio
+    # Write out compression ratio and throughput
     typer.echo(f"Encoded text into {len(token_ids)} tokens")
 
     compression_ratio = len(text.encode()) / len(token_ids)
+    throughput = len(text.encode()) / duration
+
     typer.echo(f"Tokenizer compression ratio: {compression_ratio:.2f}")
+    typer.echo(f"Tokenizer throughput: {throughput:.2f}")
 
 
 if __name__ == "__main__":
