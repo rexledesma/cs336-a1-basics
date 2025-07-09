@@ -1,5 +1,9 @@
+import os
+import pickle
 from collections.abc import Iterable, Iterator
 from itertools import chain, pairwise
+from pathlib import Path
+from typing import Self
 
 from cs336_basics.train_bpe import pre_tokenize
 
@@ -15,6 +19,19 @@ class BPETokenizer:
         self.id_for_token = {token: token_id for token_id, token in self.token_for_id.items()}
         self.id_for_merge = {merge: merge_id for merge_id, merge in enumerate(merges)}
         self.special_tokens = special_tokens or []
+
+    @classmethod
+    def from_files(
+        cls,
+        vocab_filepath: str | os.PathLike,
+        merges_filepath: str | os.PathLike,
+        special_tokens: list[str] | None = None,
+    ) -> Self:
+        return cls(
+            pickle.load(Path(vocab_filepath).open("rb")),
+            pickle.load(Path(merges_filepath).open("rb")),
+            special_tokens,
+        )
 
     def encode(self, text: str) -> list[int]:
         pre_tokens = pre_tokenize(text.encode(), self.special_tokens)
