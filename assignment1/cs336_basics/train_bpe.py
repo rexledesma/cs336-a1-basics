@@ -159,7 +159,7 @@ class BpeIndex:
         return cls(frequencies_for_pre_token, index_pqdict)
 
     def merge_most_frequent_pair(self) -> tuple[bytes, bytes]:
-        most_frequent_pair_index: PairIndex = self.index_pqdict.popvalue()
+        most_frequent_pair_index: PairIndex = self.index_pqdict.topvalue()
 
         self._update_index(most_frequent_pair_index)
 
@@ -167,7 +167,7 @@ class BpeIndex:
 
     def _update_index(self, most_frequent_pair_index: PairIndex):
         indexes_to_update: dict[tuple[bytes, bytes], PairIndex] = {}
-        for pre_token in most_frequent_pair_index.pre_tokens:
+        for pre_token in set(most_frequent_pair_index.pre_tokens):
             new_pre_token = merge(pre_token, most_frequent_pair_index.pair)
 
             frequency = self.frequencies_for_pre_token.pop(pre_token)
@@ -175,21 +175,16 @@ class BpeIndex:
 
             for pair in pairwise(new_pre_token):
                 pair_index = indexes_to_update.setdefault(pair, self.index_pqdict.get(pair, PairIndex(pair, 0, set())))
-
                 pair_index.frequency += frequency
                 pair_index.pre_tokens.add(new_pre_token)
 
             for pair in pairwise(pre_token):
-                if pair != most_frequent_pair_index.pair:
-                    pair_index = indexes_to_update.setdefault(pair, self.index_pqdict[pair])
-                    pair_index.frequency -= frequency
-                    pair_index.pre_tokens.discard(pre_token)
+                pair_index = indexes_to_update.setdefault(pair, self.index_pqdict[pair])
+                pair_index.frequency -= frequency
+                pair_index.pre_tokens.discard(pre_token)
 
-        for pair, pair_index in indexes_to_update.items():
-            if pair not in self.index_pqdict:
-                self.index_pqdict.additem(pair, pair_index)
-            else:
-                self.index_pqdict.updateitem(pair, pair_index)
+        self.index_pqdict.update(indexes_to_update)
+        self.index_pqdict.pop(most_frequent_pair_index.pair)
 
 
 def train_bpe(
