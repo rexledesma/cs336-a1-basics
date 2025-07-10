@@ -3,6 +3,7 @@ import time
 from itertools import islice
 from pathlib import Path
 
+import numpy as np
 import typer
 
 from cs336_basics.tokenizer import BPETokenizer
@@ -21,9 +22,8 @@ def create_bpe(input_path: Path, vocab_size: int):
     typer.echo(f"Vocabulary size: {len(vocabulary)}")
     typer.echo(f"Training took {duration:.2f} seconds")
 
-    filename = input_path.name
-    vocab_path = input_path.joinpath("..", f"{filename}_vocab.pkl").resolve()
-    merges_path = input_path.joinpath("..", f"{filename}_merges.pkl").resolve()
+    vocab_path = input_path.with_suffix(".vocab.pkl")
+    merges_path = input_path.with_suffix(".merges.pkl")
 
     # Serialize vocabulary and merges
     vocab_path.unlink(missing_ok=True)
@@ -53,7 +53,7 @@ def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_lines: in
 
     # Encode the text
     start = time.perf_counter()
-    token_ids = tokenizer.encode(text)
+    token_ids = np.array(tokenizer.encode(text), dtype=np.uint16)
     duration = time.perf_counter() - start
 
     # Write out compression ratio and throughput
@@ -64,6 +64,11 @@ def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_lines: in
 
     typer.echo(f"Tokenizer compression ratio: {compression_ratio:.2f}")
     typer.echo(f"Tokenizer throughput: {throughput:.2f}")
+
+    token_ids_path = input_path.with_suffix(".tokens.pkl")
+    pickle.dump(token_ids, token_ids_path.open("wb"))
+
+    typer.echo(f"Serialized token ids to {token_ids_path}")
 
 
 if __name__ == "__main__":

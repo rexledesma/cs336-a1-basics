@@ -5,6 +5,8 @@ from itertools import chain, pairwise
 from pathlib import Path
 from typing import Self
 
+from tqdm import tqdm
+
 from cs336_basics.train_bpe import pre_tokenize
 
 
@@ -34,7 +36,7 @@ class BPETokenizer:
         )
 
     def encode(self, text: str) -> list[int]:
-        pre_tokens = pre_tokenize(text.encode(), self.special_tokens)
+        pre_tokens = tqdm(pre_tokenize(text.encode(), self.special_tokens), desc="encode")
 
         token_ids = list(chain.from_iterable(self.tokenize(pre_token) for pre_token in pre_tokens))
 
