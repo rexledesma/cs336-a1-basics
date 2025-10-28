@@ -50,7 +50,7 @@ def test_adamw(numpy_snapshot):
 
 
 def test_get_lr_cosine_schedule():
-    max_learning_rate = 1
+    max_learning_rate = 1.0
     min_learning_rate = 1 * 0.1
     warmup_iters = 7
     cosine_cycle_iters = 21

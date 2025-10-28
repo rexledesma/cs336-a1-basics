@@ -3,7 +3,6 @@ import pickle
 from collections.abc import Iterable, Iterator
 from itertools import chain, pairwise
 from pathlib import Path
-from typing import Self
 
 from tqdm import tqdm
 
@@ -28,7 +27,7 @@ class BPETokenizer:
         vocab_filepath: str | os.PathLike,
         merges_filepath: str | os.PathLike,
         special_tokens: list[str] | None = None,
-    ) -> Self:
+    ):
         return cls(
             pickle.load(Path(vocab_filepath).open("rb")),
             pickle.load(Path(merges_filepath).open("rb")),

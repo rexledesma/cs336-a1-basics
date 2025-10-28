@@ -9,7 +9,7 @@ import torch
 from jaxtyping import install_import_hook
 from torch import Tensor
 
-install_import_hook("cs336_basics.transformer", "beartype.beartype")
+install_import_hook("cs336_basics", "beartype.beartype")
 
 _A = TypeVar("_A", np.ndarray, Tensor)
 

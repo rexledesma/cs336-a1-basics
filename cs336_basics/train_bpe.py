@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from itertools import pairwise
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-from typing import BinaryIO, Self
+from typing import BinaryIO
 
 import regex
 from pqdict import pqdict
@@ -138,7 +138,7 @@ class BpeIndex:
         self.index_pqdict = index_pqdict
 
     @classmethod
-    def build(cls, input_path: str | os.PathLike, special_tokens: list[str]) -> Self:
+    def build(cls, input_path: str | os.PathLike, special_tokens: list[str]):
         chunk_boundaries = find_chunk_boundaries(
             Path(input_path).open("rb"),
             desired_num_chunks=cpu_count(),
