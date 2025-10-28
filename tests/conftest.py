@@ -6,7 +6,10 @@ from typing import TypeVar
 import numpy as np
 import pytest
 import torch
+from jaxtyping import install_import_hook
 from torch import Tensor
+
+install_import_hook("cs336_basics.transformer", "beartype.beartype")
 
 _A = TypeVar("_A", np.ndarray, Tensor)
 

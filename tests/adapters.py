@@ -14,17 +14,17 @@ from cs336_basics.tokenizer import BPETokenizer
 from cs336_basics.train import load_checkpoint, load_data, save_checkpoint
 from cs336_basics.train_bpe import train_bpe
 from cs336_basics.transformer import (
-    Attention,
     CausalMultiHeadSelfAttention,
     Embedding,
     Linear,
     RMSNorm,
     RotaryPositionalEmbedding,
-    SiLU,
-    Softmax,
     SwiGLU,
     Transformer,
     TransformerBlock,
+    scaled_dot_product_attention,
+    silu,
+    softmax,
 )
 
 
@@ -135,9 +135,7 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
-    attention = Attention()
-
-    return attention(Q, K, V, mask)
+    return scaled_dot_product_attention(Q, K, V, mask)
 
 
 def run_multihead_self_attention(
@@ -458,8 +456,6 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
         Float[Tensor,"..."]: of with the same shape as `in_features` with the output of applying
         SiLU to each element.
     """
-    silu = SiLU()
-
     return silu(in_features)
 
 
@@ -499,8 +495,6 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    softmax = Softmax()
-
     return softmax(in_features, dim)
 
 
