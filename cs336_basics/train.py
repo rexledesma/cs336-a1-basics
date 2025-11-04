@@ -2,13 +2,16 @@ import os
 import typing
 
 import numpy as np
-import numpy.typing as npt
 import torch
+from jaxtyping import Int
 
 
 def load_data(
-    dataset: npt.NDArray, batch_size: int, context_length: int, device: str
-) -> tuple[torch.Tensor, torch.Tensor]:
+    dataset: np.ndarray, batch_size: int, context_length: int, device: str
+) -> tuple[
+    Int[torch.Tensor, "{batch_size} {context_length}"],
+    Int[torch.Tensor, "{batch_size} {context_length}"],
+]:
     inputs = []
     targets = []
 
