@@ -11,6 +11,7 @@ class Linear(nn.Module):
         self,
         in_features: int,
         out_features: int,
+        *,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -36,6 +37,7 @@ class Embedding(nn.Module):
         self,
         num_embeddings: int,
         embedding_dim: int,
+        *,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -57,7 +59,12 @@ class Embedding(nn.Module):
 
 class RMSNorm(nn.Module):
     def __init__(
-        self, d_model: int, eps: float = 1e-5, device: torch.device | None = None, dtype: torch.dtype | None = None
+        self,
+        d_model: int,
+        eps: float = 1e-5,
+        *,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ):
         super().__init__()
 
@@ -79,12 +86,18 @@ def silu(x: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
 
 
 class SwiGLU(nn.Module):
-    def __init__(self, d_model: int, d_ff: int):
+    def __init__(
+        self,
+        d_model: int,
+        d_ff: int,
+        *,
+        device: torch.device | None = None,
+    ):
         super().__init__()
 
-        self.w1 = Linear(d_model, d_ff)
-        self.w2 = Linear(d_ff, d_model)
-        self.w3 = Linear(d_model, d_ff)
+        self.w1 = Linear(d_model, d_ff, device=device)
+        self.w2 = Linear(d_ff, d_model, device=device)
+        self.w3 = Linear(d_model, d_ff, device=device)
 
     def forward(self, x: Float[torch.Tensor, "... d_model"]) -> Float[torch.Tensor, "... d_model"]:
         gate = silu(self.w1(x))
@@ -100,6 +113,7 @@ class RotaryPositionalEmbedding(nn.Module):
         theta: float,
         d_k: int,
         max_seq_len: int,
+        *,
         device: torch.device | None = None,
     ):
         super().__init__()
@@ -167,7 +181,14 @@ def scaled_dot_product_attention(
 
 
 class CausalMultiHeadSelfAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, rope: RotaryPositionalEmbedding | None = None):
+    def __init__(
+        self,
+        d_model: int,
+        num_heads: int,
+        rope: RotaryPositionalEmbedding | None = None,
+        *,
+        device: torch.device | None = None,
+    ):
         super().__init__()
 
         # The number of heads, or the number of separate learned subspaces for each token projection
@@ -175,11 +196,12 @@ class CausalMultiHeadSelfAttention(nn.Module):
         # This allows the model to attend and provide context according to different relational views
         # of the tokens.
         self.h: int = num_heads
+        self.device = device
 
-        self.q_proj = Linear(d_model, d_model)
-        self.k_proj = Linear(d_model, d_model)
-        self.v_proj = Linear(d_model, d_model)
-        self.output_proj = Linear(d_model, d_model)
+        self.q_proj = Linear(d_model, d_model, device=device)
+        self.k_proj = Linear(d_model, d_model, device=device)
+        self.v_proj = Linear(d_model, d_model, device=device)
+        self.output_proj = Linear(d_model, d_model, device=device)
         self.rope = rope
 
     def forward(self, x: Float[torch.Tensor, "... d_model"]) -> Float[torch.Tensor, "... d_model"]:
@@ -196,7 +218,7 @@ class CausalMultiHeadSelfAttention(nn.Module):
 
         # Create a causal mask to prevent the model from attending to future tokens in the sequence
         seq_len = x.shape[-2]
-        mask = ~torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+        mask = ~torch.triu(torch.ones((seq_len, seq_len), device=self.device), diagonal=1).bool()
 
         # Include the positional encoding to the query and key vectors
         if self.rope:
@@ -216,13 +238,21 @@ class CausalMultiHeadSelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, d_ff: int, rope: RotaryPositionalEmbedding):
+    def __init__(
+        self,
+        d_model: int,
+        num_heads: int,
+        d_ff: int,
+        rope: RotaryPositionalEmbedding,
+        *,
+        device: torch.device | None = None,
+    ):
         super().__init__()
 
-        self.ln1 = RMSNorm(d_model)
-        self.attn = CausalMultiHeadSelfAttention(d_model, num_heads, rope)
-        self.ln2 = RMSNorm(d_model)
-        self.ffn = SwiGLU(d_model, d_ff)
+        self.ln1 = RMSNorm(d_model, device=device)
+        self.attn = CausalMultiHeadSelfAttention(d_model, num_heads, rope, device=device)
+        self.ln2 = RMSNorm(d_model, device=device)
+        self.ffn = SwiGLU(d_model, d_ff, device=device)
 
     def forward(self, x: Float[torch.Tensor, "... d_model"]) -> Float[torch.Tensor, "... d_model"]:
         # An intuition to have a pre-norm block (in place of a post-norm) is that
@@ -251,16 +281,20 @@ class Transformer(nn.Module):
         context_length: int,
         num_layers: int,
         rope_theta: float,
+        *,
+        device: torch.device | None = None,
     ):
         super().__init__()
 
         d_k = d_model // num_heads
-        rope = RotaryPositionalEmbedding(rope_theta, d_k, context_length)
+        rope = RotaryPositionalEmbedding(rope_theta, d_k, context_length, device=device)
 
-        self.token_embeddings = Embedding(vocab_size, d_model)
-        self.layers = nn.Sequential(*(TransformerBlock(d_model, num_heads, d_ff, rope) for _ in range(num_layers)))
-        self.ln_final = RMSNorm(d_model)
-        self.lm_head = Linear(d_model, vocab_size)
+        self.token_embeddings = Embedding(vocab_size, d_model, device=device)
+        self.layers = nn.Sequential(
+            *(TransformerBlock(d_model, num_heads, d_ff, rope, device=device) for _ in range(num_layers))
+        )
+        self.ln_final = RMSNorm(d_model, device=device)
+        self.lm_head = Linear(d_model, vocab_size, device=device)
 
     def forward(self, x: Int[torch.Tensor, "... seq_len"]) -> Float[torch.Tensor, "... seq_len vocab_size"]:
         # First, transform the token ids into the embedding space
