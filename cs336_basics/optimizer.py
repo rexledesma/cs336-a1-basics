@@ -6,7 +6,7 @@ from jaxtyping import Float, Int
 
 
 def cross_entropy(
-    logits: Float[torch.Tensor, "batch_size vocab_size"], targets: Int[torch.Tensor, " batch_size"]
+    logits: Float[torch.Tensor, "*batches vocab_size"], targets: Int[torch.Tensor, "*batches"]
 ) -> Float[torch.Tensor, ""]:
     # Cross-entropy is just calculating entropy (the average surprise of a distribution)
     # using a wrong belief Q
@@ -36,7 +36,8 @@ def cross_entropy(
     #         = -o[x_i] + \log \sum_a e^{o[a]}
     logits_stable = logits - logits.max(dim=-1, keepdim=True).values
     logits_exp_sum = logits_stable.exp().sum(dim=-1, keepdim=True)
-    loss = -logits_stable[torch.arange(logits.size(0)), targets] + torch.log(logits_exp_sum)
+    target_logits = logits_stable.gather(dim=-1, index=targets.unsqueeze(-1))
+    loss = -target_logits + torch.log(logits_exp_sum)
 
     # Calculate the loss across the entire batch.
     loss = loss.mean()
