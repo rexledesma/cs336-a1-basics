@@ -305,6 +305,6 @@ class Transformer(nn.Module):
 
         # Then, pass the tokens through the final layers to obtain a distribution over the vocabulary
         h = self.ln_final(h)
-        probs = self.lm_head(h)
+        logits = self.lm_head(h)
 
-        return probs
+        return logits
