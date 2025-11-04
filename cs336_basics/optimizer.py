@@ -64,7 +64,7 @@ def cosine_lr_schedule(t: int, lr_max: float, lr_min: float, t_w: int, t_c: int)
 def clip_grad_norm(parameters: Iterable[torch.nn.Parameter], max_norm: float, eps: float = 1e-6):
     parameters = list(parameters)
     gradients = [p.grad for p in parameters if p.grad is not None]
-    total_norm = torch.linalg.vector_norm(torch.cat(gradients))
+    total_norm = torch.linalg.vector_norm(torch.cat([g.flatten() for g in gradients]))
 
     for p in parameters:
         if p.grad is None:

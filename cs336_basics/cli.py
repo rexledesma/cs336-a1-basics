@@ -9,7 +9,7 @@ import torch
 import typer
 
 import wandb
-from cs336_basics.optimizer import AdamW, cross_entropy
+from cs336_basics.optimizer import AdamW, clip_grad_norm, cosine_lr_schedule, cross_entropy
 from cs336_basics.tokenizer import BPETokenizer
 from cs336_basics.train import load_data, save_checkpoint
 from cs336_basics.train_bpe import train_bpe
@@ -141,6 +141,17 @@ def train_model(
         # Grab some examples from the training set
         train_inputs, train_targets = load_data(train_dataset, batch_size, context_length, device)
 
+        # Update the learning rate dynamically
+        current_lr = cosine_lr_schedule(
+            t=step,
+            lr_max=10 * lr,
+            lr_min=lr,
+            t_w=int(0.1 * num_steps),
+            t_c=num_steps,
+        )
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = current_lr
+
         # Zero out the gradients
         optimizer.zero_grad()
 
@@ -160,17 +171,17 @@ def train_model(
                 valid_outputs = model(valid_inputs)
                 valid_loss = cross_entropy(valid_outputs, valid_targets)
 
-            wandb_run.log(
-                {
-                    "train_loss": train_loss,
-                    "valid_loss": valid_loss,
-                },
-                step=step,
-            )
+            data = {
+                "train_loss": train_loss.item(),
+                "valid_loss": valid_loss.item(),
+            }
+            typer.echo(f"{step=}, {data=}")
+            wandb_run.log(data, step=step)
 
             model.train()
 
         # With our gradients, then update our parameters
+        clip_grad_norm(model.parameters(), max_norm=1.0)
         optimizer.step()
 
     typer.echo("Done training.")
