@@ -2,11 +2,13 @@ import pickle
 import time
 from itertools import islice
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import torch
 import typer
 
+import wandb
 from cs336_basics.optimizer import AdamW, cross_entropy
 from cs336_basics.tokenizer import BPETokenizer
 from cs336_basics.train import load_data, save_checkpoint
@@ -14,6 +16,15 @@ from cs336_basics.train_bpe import train_bpe
 from cs336_basics.transformer import Transformer, softmax
 
 app = typer.Typer()
+
+ROOT_DIRECTORY_PATH = (
+    Path(__file__)
+    .joinpath(
+        "..",
+        "..",
+    )
+    .resolve()
+)
 
 
 @app.command()
@@ -77,22 +88,22 @@ def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_lines: in
 
 @app.command()
 def train_model(
-    dataset_path: Path,
-    batch_size: int,
-    context_length: int,
-    device: str,
-    d_model: int,
-    num_heads: int,
-    d_ff: int,
-    vocab_size: int,
-    num_layers: int,
-    rope_theta: float,
-    lr: float,
-    weight_decay: float,
-    betas: tuple[float, float],
-    eps: float,
-    iterations: int,
-    checkpoint_path: Path,
+    dataset: Literal["tinystories", "owt"] = "tinystories",
+    batch_size: int = 32,
+    context_length: int = 256,
+    device: str = "mps:0",
+    d_model: int = 512,
+    num_heads: int = 16,
+    d_ff: int = 1344,
+    vocab_size: int = 10000,
+    num_layers: int = 4,
+    rope_theta: float = 10000,
+    lr: float = 1e-3,
+    weight_decay: float = 1e-2,
+    betas: tuple[float, float] = (0.9, 0.999),
+    eps: float = 1e-8,
+    num_steps: int = 5000,
+    checkpoint_path: Path = ROOT_DIRECTORY_PATH.joinpath("checkpoints"),
 ):
     model = Transformer(
         d_model=d_model,
@@ -104,6 +115,7 @@ def train_model(
         rope_theta=rope_theta,
         device=torch.device(device),
     )
+    model = torch.compile(model, backend="aot_eager")
     optimizer = AdamW(
         params=model.parameters(),
         lr=lr,
@@ -112,47 +124,80 @@ def train_model(
         eps=eps,
     )
 
-    dataset = np.load(dataset_path, mmap_mode="r")
-    inputs, targets = load_data(dataset, batch_size, context_length, device)
-    for idx in range(iterations):
-        # First, zero out the gradients
+    model_name = f"{dataset}.pt"
+    wandb_run = wandb.init(
+        project="cs336-assignment-1",
+        config={
+            "dataset": dataset,
+            "lr": lr,
+        },
+    )
+
+    dataset_path = ROOT_DIRECTORY_PATH.joinpath("data", dataset)
+
+    train_dataset = np.load(dataset_path.joinpath(f"{dataset}-train-tokens.npy"), mmap_mode="r")
+    valid_dataset = np.load(dataset_path.joinpath(f"{dataset}-valid-tokens.npy"), mmap_mode="r")
+    for step in range(num_steps):
+        # Grab some examples from the training set
+        train_inputs, train_targets = load_data(train_dataset, batch_size, context_length, device)
+
+        # Zero out the gradients
         optimizer.zero_grad()
 
         # Use the current model to generate the logits
-        outputs = model(inputs)
+        train_outputs = model(train_inputs)
 
         # Calculate the loss, then compute the gradients with respect to the loss
-        loss = cross_entropy(outputs, targets)
-        loss.backward()
+        train_loss = cross_entropy(train_outputs, train_targets)
+        train_loss.backward()
 
-        typer.echo(f"Iteration {idx}: loss={loss.item()}")
+        # Evaluate the model on the validation set
+        if step % 20 == 0:
+            model.eval()
+
+            valid_inputs, valid_targets = load_data(valid_dataset, batch_size, context_length, device)
+            with torch.no_grad():
+                valid_outputs = model(valid_inputs)
+                valid_loss = cross_entropy(valid_outputs, valid_targets)
+
+            wandb_run.log(
+                {
+                    "train_loss": train_loss,
+                    "valid_loss": valid_loss,
+                },
+                step=step,
+            )
+
+            model.train()
 
         # With our gradients, then update our parameters
         optimizer.step()
 
     typer.echo("Done training.")
-    save_checkpoint(model, optimizer, idx, out=checkpoint_path)
+    save_checkpoint(model, optimizer, step, out=checkpoint_path.joinpath(model_name))
 
 
 @app.command()
 def generate(
-    checkpoint_path: Path,
-    vocab_path: Path,
-    merges_path: Path,
     prompt: str,
-    context_length: int,
-    d_model: int,
-    num_heads: int,
-    d_ff: int,
-    vocab_size: int,
-    num_layers: int,
-    rope_theta: float,
-    device: str,
+    checkpoint_path: Path,
+    dataset: Literal["tinystories", "owt"] = "tinystories",
+    context_length: int = 256,
+    d_model: int = 512,
+    num_heads: int = 16,
+    d_ff: int = 1344,
+    vocab_size: int = 10000,
+    num_layers: int = 16,
+    rope_theta: float = 10000,
+    device: str = "mps:0",
     max_tokens: int | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
 ):
+    vocab_path = ROOT_DIRECTORY_PATH.joinpath("data", dataset, f"{dataset}-train-vocab.pkl")
+    merges_path = ROOT_DIRECTORY_PATH.joinpath("data", dataset, f"{dataset}-train-merges.pkl")
     tokenizer = BPETokenizer.from_files(vocab_path, merges_path, ["<|endoftext|>"])
+
     model = Transformer(
         d_model=d_model,
         num_heads=num_heads,
@@ -163,6 +208,8 @@ def generate(
         rope_theta=rope_theta,
         device=torch.device(device),
     )
+    model = torch.compile(model, backend="aot_eager")
+
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint["model"])
 

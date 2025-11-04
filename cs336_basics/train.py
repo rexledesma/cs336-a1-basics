@@ -28,7 +28,7 @@ def load_data(
 
 
 def save_checkpoint(
-    model: torch.nn.Module,
+    model: typing.Any,
     optimizer: torch.optim.Optimizer,
     iteration: int,
     out: str | os.PathLike | typing.BinaryIO | typing.IO[bytes],

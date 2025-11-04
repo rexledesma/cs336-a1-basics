@@ -167,3 +167,4 @@ data
 
 # Ignore checkpoints
 checkpoints
+wandb
