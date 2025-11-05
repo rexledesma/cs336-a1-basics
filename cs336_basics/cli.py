@@ -198,7 +198,7 @@ def generate(
     num_heads: int = 16,
     d_ff: int = 1344,
     vocab_size: int = 10000,
-    num_layers: int = 16,
+    num_layers: int = 4,
     rope_theta: float = 10000,
     device: str = "mps:0",
     max_tokens: int | None = None,
