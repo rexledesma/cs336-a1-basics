@@ -6,7 +6,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from cs336_basics.train_bpe import pre_tokenize
+from cs336_basics.train_bpe import merge, pre_tokenize
 
 
 class BPETokenizer:
@@ -34,43 +34,38 @@ class BPETokenizer:
             special_tokens,
         )
 
-    def encode(self, text: str) -> list[int]:
-        pre_tokens = tqdm(pre_tokenize(text.encode(), self.special_tokens), desc="encode")
-
+    def encode(self, text: str | bytes) -> list[int]:
+        encoded_text = text.encode() if isinstance(text, str) else text
+        pre_tokens = pre_tokenize(encoded_text, self.special_tokens)
         token_ids = list(chain.from_iterable(self.tokenize(pre_token) for pre_token in pre_tokens))
 
         return token_ids
 
     def tokenize(self, pre_token: tuple[bytes, ...]) -> list[int]:
         # Deconstruct the pre token into its constituent tokens and return their IDs.
-        pre_token_list = list(pre_token)
-        while len(pre_token_list) > 1:
-            merge_positions: list[tuple[int, int]] = []
-            for idx, pair in enumerate(pairwise(pre_token_list)):
+        while True:
+            merge_ids: set[tuple[int, tuple[bytes, bytes]]] = set()
+            for pair in pairwise(pre_token):
                 merge_id = self.id_for_merge.get(pair)
 
                 if merge_id is not None:
-                    merge_positions.append((merge_id, idx))
+                    merge_ids.add((merge_id, pair))
 
             # If no pairs are found, break the loop
-            if not merge_positions:
+            if not merge_ids:
                 break
 
             # Apply the merge in the same order of creation
-            merge_id_to_process, _ = min(merge_positions)
+            _, merged_pair = min(merge_ids)
 
-            merge_position = min(idx for (merge_id, idx) in merge_positions if merge_id == merge_id_to_process)
-            merged_bytes = b"".join((pre_token_list[merge_position], pre_token_list[merge_position + 1]))
+            pre_token = merge(pre_token, merged_pair)
 
-            pre_token_list[merge_position] = merged_bytes
-            del pre_token_list[merge_position + 1]
-
-        token_ids = [self.id_for_token[i] for i in pre_token_list]
+        token_ids = [self.id_for_token[i] for i in pre_token]
 
         return token_ids
 
-    def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
-        for text in iterable:
+    def encode_iterable(self, iterable: Iterable[str | bytes]) -> Iterator[int]:
+        for text in tqdm(iterable, desc="encode"):
             yield from self.encode(text)
 
     def decode(self, ids: list[int]) -> str:

@@ -1,6 +1,5 @@
 import pickle
 import time
-from itertools import islice
 from pathlib import Path
 from typing import Literal
 
@@ -51,32 +50,56 @@ def create_bpe(input_path: Path, vocab_size: int):
     typer.echo(f"Serialized merges to {merges_path}")
 
 
+def split_file_on_delimiter(filepath: Path, delimiter: bytes, num_examples: int, chunk_size: int = 8192):
+    file = filepath.open("rb")
+
+    buffer = b""
+    while num_examples > 0:
+        chunk = file.read(chunk_size)
+        if not chunk:
+            # End of file - yield remaining buffer
+            if buffer:
+                yield buffer
+            break
+
+        buffer += chunk
+
+        # Split on delimiter
+        while delimiter in buffer:
+            segment, buffer = buffer.split(delimiter, 1)
+            yield segment
+
+            num_examples -= 1
+
+
 @app.command()
-def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_lines: int | None = None):
+def run_bpe(vocab_path: Path, merges_path: Path, input_path: Path, num_examples: int | None = None):
     """Create a BPETokenizer from pickled vocabulary and merges files."""
     tokenizer = BPETokenizer.from_files(vocab_path, merges_path, ["<|endoftext|>"])
 
     typer.echo("Successfully created BPETokenizer")
     typer.echo(f"Vocabulary size: {len(tokenizer.token_for_id)}")
 
-    input_file = input_path.open("r")
-    if num_lines:
-        lines = islice(input_path.open("r"), num_lines)
-        text = "\n".join(lines)
+    if num_examples:
+        input_file = list(split_file_on_delimiter(input_path, b"<|endoftext|>", num_examples))
+        file_size_bytes = sum(map(len, input_file))
     else:
-        text = input_file.read()
+        input_file = input_path.open("rb")
+        file_size_bytes = input_path.stat().st_size
 
     # Encode the text
     start = time.perf_counter()
-    token_ids = np.array(tokenizer.encode(text), dtype=np.uint16)
+    tokenized_iter = tokenizer.encode_iterable(input_file)
+    token_ids = np.array(list(tokenized_iter), dtype=np.uint16)
     duration = time.perf_counter() - start
 
     # Write out compression ratio and throughput
     typer.echo(f"Encoded text into {len(token_ids)} tokens")
 
-    compression_ratio = len(text.encode()) / len(token_ids)
-    throughput = len(text.encode()) / duration
+    compression_ratio = file_size_bytes / len(token_ids)
+    throughput = file_size_bytes / duration
 
+    typer.echo(f"Duration: {duration:.2f}s")
     typer.echo(f"Tokenizer compression ratio: {compression_ratio:.2f}")
     typer.echo(f"Tokenizer throughput: {throughput:.2f}")
 
