@@ -135,3 +135,31 @@ class AdamW(torch.optim.Optimizer):
                 state["v"] = v
 
         return loss
+
+
+class SGD(torch.optim.Optimizer):
+    def __init__(self, params, lr=1e-3):
+        if lr < 0:
+            raise ValueError(f"Invalid learning rate: {lr}")
+        defaults = dict(lr=lr)
+        super().__init__(params, defaults)
+
+    def step(self, closure: Callable[[], float] | None = None) -> float | None:
+        loss = None if closure is None else closure()
+        for group in self.param_groups:
+            lr = group["lr"]
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+
+                # Retrieve the states
+                state = self.state[p]
+                t = state.get("t", 0)
+
+                # Update the weights
+                p.data -= lr / math.sqrt(t + 1) * p.grad.data
+
+                # Store the state
+                state["t"] = t + 1
+
+        return loss
